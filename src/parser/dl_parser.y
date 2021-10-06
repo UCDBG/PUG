@@ -57,7 +57,7 @@ Node *dlParseResult = NULL;
  *        Later on other keywords will be added.
  */
 %token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS 
-%token <stringVal> SCORE AS THRESHOLDS TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE
+%token <stringVal> SCORE AS THRESHOLDS TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE HYBRID
 
 /* tokens for constant and idents */
 %token <intVal> intConst
@@ -90,7 +90,7 @@ Node *dlParseResult = NULL;
 %type <node> variable constant expression functionCall binaryOperatorExpression optionalTopK optionalSumSample optionalSumType
 %type <node> optionalFPattern 
 %type <list> bodyAtomList argList exprList rulebody summarizationStatement intConstList optionalScore optionalThresholds
-%type <stringVal> optProvFormat 
+%type <stringVal> optProvFormat optHybrid
 
 /* start symbol */
 %start program
@@ -133,6 +133,7 @@ stmtList:
  * 	- associated domain declarations, e.g., USERDOMAIN OF rel.attr IS DQ;
  * 	- provenance requests, e.g., WHY(Q(1));
  *	- summarization, e.g., TOP k SUMMARIZED BY type WITH SAMPLE(p);
+ *	- hybrid explanation, e.g., HYBRID WHY(Q(1));
  *  - RPQ requests, e.g., RPQ('a*.b', typeOfResult, edge, result)
  */
 statement:
@@ -142,8 +143,10 @@ statement:
 		| associateDomain { RULELOG("statement::associateDomain"); $$ = $1; }		
 		| provStatement { RULELOG("statement::prov"); $$ = $1; }
 		| rpqStatement { RULELOG("statement::rpq"); $$ = $1; }
+//		| hybridStatement { RULELOG("statement::hybridProv"); $$ = $1; } 
 	;
 
+		
 rpqStatement:
 		RPQ '(' stringConst ',' IDENT ',' IDENT ',' IDENT ')' '.'
 		{
@@ -153,16 +156,16 @@ rpqStatement:
 	;
 	
 provStatement:
-		WHYPROV '(' relAtom ')' optProvFormat '.' 
+		WHYPROV '(' relAtom ')' optProvFormat optHybrid '.'
 		{
 			RULELOG("provStatement::WHY");
-			char *str = $5 ? CONCAT_STRINGS("WHY_PROV-", $5) : "WHY_PROV";
+			char *str = $5 ? CONCAT_STRINGS("WHY_PROV-", $5, $6) : "WHY_PROV";
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), (Node *) $3);
 		}
-		| WHYNOTPROV '(' relAtom ')' optProvFormat '.'
+		| WHYNOTPROV '(' relAtom ')' optProvFormat optHybrid '.'
 		{
 			RULELOG("provStatement::WHYNOT");
-			char *str = $5 ? CONCAT_STRINGS("WHYNOT_PROV-", $5) : "WHYNOT_PROV";
+			char *str = $5 ? CONCAT_STRINGS("WHYNOT_PROV-", $5, $6) : "WHYNOT_PROV";
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), (Node *) $3);
 		}
 		| GP optProvFormat '.'
@@ -173,6 +176,12 @@ provStatement:
 		}
 	;
 
+		
+optHybrid:
+		/* EMPTY */ { $$ = NULL; }
+		| HYBRID { $$ = CONCAT_STRINGS("-", $1); }
+	;
+				
 /* optProv:
 		optProvFormat optProvSummarize
 	;
@@ -374,7 +383,8 @@ optProvFormat:
 		/* EMPTY */ { $$ = NULL; }
 		| FORMAT name { $$ = $2; }
 	;	
-	
+		
+		
 rule:
 		rulehead RULE_IMPLICATION rulebody '.' 
 		{ 
@@ -509,7 +519,7 @@ constList:
 */
 
 comparison:
-		arg comparisonOp arg
+		expression comparisonOp expression
 			{
 				RULELOG("comparison::arg::op::arg");
 				$$ = (Node *) createDLComparison($2, $1, $3);
@@ -611,14 +621,14 @@ binaryOperatorExpression:
  * Rule to parse function calls (provision for aggregation)
  */
 functionCall: 
-        name '(' exprList ')'          
-            {
-                RULELOG("functionCall::IDENTIFIER::exprList");
-				FunctionCall *f = createFunctionCall($1, $3);
-				f->isAgg = TRUE;
-				$$ = (Node *) f;
-            }
-		| AMMSC '(' exprList ')'          
+//        name '(' exprList ')'          
+//            {
+//                RULELOG("functionCall::IDENTIFIER::exprList");
+//				FunctionCall *f = createFunctionCall($1, $3);
+//				f->isAgg = TRUE;
+//				$$ = (Node *) f;
+//            }
+		AMMSC '(' exprList ')'          
             {
                 RULELOG("functionCall::AMMSC::exprList");
 				FunctionCall *f = createFunctionCall($1, $3);

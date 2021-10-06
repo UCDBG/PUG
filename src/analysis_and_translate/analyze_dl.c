@@ -444,6 +444,48 @@ analyzeProv (DLProgram *p, KeyValue *kv)
 		{
 			DL_SET_STRING_PROP(p, DL_PROV_FORMAT, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED);
 		}
+        else if (isSuffix(type, DL_PROV_FORMAT_HYBRID)) // hybrid explanations
+		{
+        	if (isSubstr(type, DL_PROV_FORMAT_GP_REDUCED))
+        	{
+        		char *str = CONCAT_STRINGS(DL_PROV_FORMAT_GP_REDUCED, "-", DL_PROV_FORMAT_HYBRID);
+        		DL_SET_STRING_PROP(p, DL_PROV_FORMAT, str);
+        	}
+        	else if (isSubstr(type, DL_PROV_FORMAT_TUPLE_ONLY))
+        	{
+        		char *str = CONCAT_STRINGS(DL_PROV_FORMAT_TUPLE_ONLY, "-", DL_PROV_FORMAT_HYBRID);
+        		DL_SET_STRING_PROP(p, DL_PROV_FORMAT, str);
+        	}
+        	else if (isSubstr(type, DL_PROV_FORMAT_TUPLE_RULE_TUPLE))
+			{
+				char *str = CONCAT_STRINGS(DL_PROV_FORMAT_TUPLE_RULE_TUPLE, "-", DL_PROV_FORMAT_HYBRID);
+				DL_SET_STRING_PROP(p, DL_PROV_FORMAT, str);
+			}
+        	else if (isSubstr(type, DL_PROV_FORMAT_HEAD_RULE_EDB))
+			{
+				char *str = CONCAT_STRINGS(DL_PROV_FORMAT_HEAD_RULE_EDB, "-", DL_PROV_FORMAT_HYBRID);
+				DL_SET_STRING_PROP(p, DL_PROV_FORMAT, str);
+			}
+        	else if (isSubstr(type, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE))
+			{
+				char *str = CONCAT_STRINGS(DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE, "-", DL_PROV_FORMAT_HYBRID);
+				DL_SET_STRING_PROP(p, DL_PROV_FORMAT, str);
+			}
+        	else if (isSubstr(type, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED))
+			{
+				char *str = CONCAT_STRINGS(DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED, "-", DL_PROV_FORMAT_HYBRID);
+				DL_SET_STRING_PROP(p, DL_PROV_FORMAT, str);
+			}
+        	else if (isSubstr(type, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED))
+			{
+				char *str = CONCAT_STRINGS(DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED, "-", DL_PROV_FORMAT_HYBRID);
+				DL_SET_STRING_PROP(p, DL_PROV_FORMAT, str);
+			}
+        	else
+			{
+				FATAL_LOG("unkown provenance return format: %s", type);
+			}
+		}
         else
         {
             FATAL_LOG("unkown provenance return format: %s", type);
