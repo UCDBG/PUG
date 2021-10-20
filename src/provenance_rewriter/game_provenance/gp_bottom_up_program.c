@@ -3560,6 +3560,52 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					goalPos++;
 				}
+				else if (isA(atom,DLComparison)){
+					DLComparison *new_atom = makeNode(DLComparison);
+					new_atom = copyObject(a);
+
+					Operator *op = new_atom->opExpr;
+					
+					char* comparison_name = op->name;
+					List* hybrid_lists = op->args;
+					
+					a->args = makeNode(List);
+					char *expr = "";
+					FOREACH_LC(lc,hybrid_lists){
+						Node * type = (Node *) LC_P_VAL(lc);
+						if (isA(type,Operator)){
+							Operator *o = (Operator *) type;
+							
+							char *sign = o->name;
+							
+							// todo. C1 + C2 + C3 < 500.
+							int length = LIST_LENGTH(o->args);
+							int start = 0;
+
+							while (length > 0){
+								// DLVar *v = (DLVar *) getHeadOfListP(o->args);
+								
+								DLVar *v = (DLVar *) getNthOfListP(o->args,start++);
+								expr = CONCAT_STRINGS(expr,v->name);
+								type = (Node *) v;
+								a->args = appendToTailOfList(a->args,type);
+								length--;
+								if (length > 0) expr = CONCAT_STRINGS(expr,sign);
+							}
+						} else if (isA(type,Constant)){
+							Constant * o = (Constant *) type;
+							int *intg = (int*)o->value;
+							char* c = gprom_itoa(*intg);
+							expr = CONCAT_STRINGS(expr,comparison_name,c,"_","WL",NON_LINKED_POSTFIX);
+						}
+					}
+					
+					a->n.type = T_DLAtom;
+					a->rel = expr;
+					// a->args = origArgs;
+					a->negated = FALSE;
+				} 
+
 			}
 
 			DEBUG_LOG("created new rule:\n%s", datalogToOverviewString((Node *) ruleRule));
