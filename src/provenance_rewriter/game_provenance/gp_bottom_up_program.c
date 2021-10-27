@@ -62,6 +62,9 @@ static DLProgram *createInputDBprogram (DLProgram *p, DLAtom *question);
 
 static void enumerateRules (DLProgram *p);
 static List *removeVars (List *vars, List *remVars);
+// new for hybrid explanation.
+static List *hybrid_args(List* args,Operator* op);
+
 //boolean searchVars (List *vars, List *searVars);
 //static List *makeUniqueVarList (List *vars);
 static void setIDBBody (DLRule *r);
@@ -3561,53 +3564,16 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					goalPos++;
 				}
 				// Rewriting the comparison atoms for hybrid explanations
-				if(isSubstr(fmt,DL_PROV_FORMAT_HYBRID)) {
-					// TODO: rewrite comparison atoms
-					if (isA(atom,DLComparison)){
-						DLComparison *new_atom = makeNode(DLComparison);
-						new_atom = copyObject(a);
+				else if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID) && isA(atom,DLComparison)){
+					DLComparison *new_atom = makeNode(DLComparison);
+					new_atom = copyObject(a);
 
-						Operator *op = new_atom->opExpr;
-
-						char* comparison_name = op->name;
-						List* hybrid_lists = op->args;
-
-						a->args = makeNode(List);
-						char *expr = "";
-						FOREACH_LC(lc,hybrid_lists){
-							Node * type = (Node *) LC_P_VAL(lc);
-							if (isA(type,Operator)){
-								Operator *o = (Operator *) type;
-
-								char *sign = o->name;
-
-								// todo. C1 + C2 + C3 < 500.
-								int length = LIST_LENGTH(o->args);
-								int start = 0;
-
-								while (length > 0){
-									// DLVar *v = (DLVar *) getHeadOfListP(o->args);
-
-									DLVar *v = (DLVar *) getNthOfListP(o->args,start++);
-									expr = CONCAT_STRINGS(expr,v->name);
-									type = (Node *) v;
-									a->args = appendToTailOfList(a->args,type);
-									length--;
-									if (length > 0) expr = CONCAT_STRINGS(expr,sign);
-								}
-							} else if (isA(type,Constant)){
-								Constant * o = (Constant *) type;
-								int *intg = (int*)o->value;
-								char* c = gprom_itoa(*intg);
-								expr = CONCAT_STRINGS(expr,comparison_name,c,"_","WL",NON_LINKED_POSTFIX);
-							}
-						}
-
-						a->n.type = T_DLAtom;
-						a->rel = expr;
-						// a->args = origArgs;
-						a->negated = FALSE;
-					}
+					Operator *op = new_atom->opExpr;
+					a->args = makeNode(List);
+					a->args = hybrid_args(a->args,op);
+					a->n.type = T_DLAtom;
+					a->rel = "hybrid";
+					a->negated = FALSE;
 				}
 			}
 
@@ -6497,4 +6463,32 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
     DEBUG_LOG("Associated Domain:\n%s", datalogToOverviewString((Node *) domainRules));
 
     return p;
+}
+List *hybrid_args(List* args,Operator* op){
+    Node *type = (Node *) op;
+    if (isA(type,Operator)){
+        char* comparison_name = op->name;
+        List* hybrid_lists = op->args;
+		int start = 0;
+        FOREACH_LC(lc,hybrid_lists){
+            Node * type = (Node *) LC_P_VAL(lc);
+            if (isA(type,Operator)){
+                Operator *o = (Operator *) type;
+                args = hybrid_args(args,o);
+            } else if (isA(type,Constant)){
+                Constant * o = copyObject((Constant *) type);
+                args = appendToTailOfList(args,o);
+            } else {
+				DLVar * o = copyObject((DLVar *) type);
+				args = appendToTailOfList(args,o);
+			}
+			start++;
+            if (start == 1){
+                DLVar *temp = createDLVar(comparison_name,DT_STRING);
+				args = appendToTailOfList(args,temp);
+            }
+        }
+								
+    }
+    return args;
 }
