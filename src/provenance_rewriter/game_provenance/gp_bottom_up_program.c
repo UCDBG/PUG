@@ -3565,15 +3565,29 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				}
 				// Rewriting the comparison atoms for hybrid explanations
 				else if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID) && isA(atom,DLComparison)){
+					
 					DLComparison *new_atom = makeNode(DLComparison);
 					new_atom = copyObject(a);
-
+					
 					Operator *op = new_atom->opExpr;
 					a->args = makeNode(List);
 					a->args = hybrid_args(a->args,op);
 					a->n.type = T_DLAtom;
-					a->rel = "hybrid";
+					a->rel = "Q_comp1";
+
+					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
+					{
+						DLAtom *at;
+						AD_NORM_COPY(at,a);
+						addToSet(adornedEDBAtoms, at);
+					}
+					setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(a));
+					char *adHeadName = CONCAT_STRINGS("Q_comp1_",
+											ruleWon ? "WON" : "WL",
+											NON_LINKED_POSTFIX);
+					a->rel = adHeadName;
 					a->negated = FALSE;
+					
 				}
 			}
 
@@ -4550,6 +4564,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						datalogToOverviewString((Node *) unRule),
 						datalogToOverviewString((Node *) goalRules));
 				ASSERT(goalRules != NIL);
+				
 
 				// create unlink rule for each rule that has goal atom as head
 				FOREACH(DLRule,gRule,goalRules)
@@ -6484,7 +6499,8 @@ List *hybrid_args(List* args,Operator* op){
 			}
 			start++;
             if (start == 1){
-                DLVar *temp = createDLVar(comparison_name,DT_STRING);
+				// DLconstant.
+				Constant * temp = createConstString(comparison_name);
 				args = appendToTailOfList(args,temp);
             }
         }
