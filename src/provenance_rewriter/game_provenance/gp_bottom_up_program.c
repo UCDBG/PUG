@@ -3576,15 +3576,18 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					// a->rel = "Q_comp1";
 					char rel = atom_position + '0';
 					char p_rel[2]= {rel};
-					a->rel = CONCAT_STRINGS("Q_comp",p_rel);
+					char *headPred = r->head->rel;
+					a->rel = CONCAT_STRINGS(headPred, "_comp",p_rel);
+
+//					DL_SET_BOOL_PROP(a, DL_IS_IDB_REL); // make the translated DLComparison to DLAtom IDB
 					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
 					{
 						DLAtom *at;
 						AD_NORM_COPY(at,a);
-						addToSet(adornedEDBAtoms, at);
+						addToSet(adornedEDBHelpAtoms, at);
 					}
 					setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(new_atom));
-					char *adHeadName = CONCAT_STRINGS("R","Q_comp", p_rel, "_",
+					char *adHeadName = CONCAT_STRINGS("R",a->rel, "_",
 											ruleWon ? "WON" : "WL",
 											NON_LINKED_POSTFIX);
 					a->rel = adHeadName;
