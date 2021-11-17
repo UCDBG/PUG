@@ -4907,7 +4907,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
     /* ************************************************************ */
     // create rules for move relation
-    if (streq(fmt,DL_PROV_FORMAT_GP) || isSubstr(fmt,DL_PROV_FORMAT_HYBRID))
+    if (streq(fmt,DL_PROV_FORMAT_GP))
     {
         moveRules = createGPMoveRules(getMatched, negedbRules, edbRules,
                 unLinkedRules);
@@ -5002,6 +5002,95 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     	}
     	moveRules = createTupleRuleTupleGraphMoveRules(getMatched, negedbRules, edbRules,
 						unLinkedRules);
+	}
+    else if (isSubstr(fmt, DL_PROV_FORMAT_HYBRID)) // hybrid explanations
+	{
+		if (isSubstr(fmt, DL_PROV_FORMAT_GP_REDUCED))
+		{
+			moveRules = createGPReducedMoveRules(getMatched, negedbRules, edbRules,
+			                        unLinkedRules);
+		}
+		else if (isSubstr(fmt, DL_PROV_FORMAT_TUPLE_RULE_TUPLE))
+		{
+			moveRules = createTupleRuleTupleGraphMoveRules(getMatched, negedbRules, edbRules,
+			                        unLinkedRules);
+		}
+		else if (isSubstr(fmt, DL_PROV_FORMAT_HEAD_RULE_EDB))
+		{
+			moveRules = createHeadRuleEdbGraphMoveRules(getMatched, negedbRules, edbRules,
+			                        unLinkedRules);
+		}
+		else if (isSubstr(fmt, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE))
+		{
+			moveRules = createTupleRuleGoalTupleGraphMoveRules(getMatched, negedbRules, edbRules,
+			                        unLinkedRules);
+		}
+		else if (isSubstr(fmt, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED))
+		{
+	    	FOREACH(DLRule,r,unLinkedRules)
+	    	{
+	    		int i = 0;
+	    		FOREACH(Node,n,r->head->args)
+				{
+	    	    	List *compArgs = NIL;
+
+					if(!isA(n,Constant))
+					{
+						compArgs = appendToTailOfList(compArgs,n);
+
+						// TODO: adding the comparison might be limited in some cases only
+						// e.g., 3hop(X,Y) :- hop(X,A), hop(A,B), hop(B,Y).
+						for(int j = i+1; j < LIST_LENGTH(r->head->args); j++)
+						{
+							if(LIST_LENGTH(compArgs) == 2)
+								compArgs = removeFromTail(compArgs);
+
+							compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
+
+							DLComparison *comp = makeNode(DLComparison);
+							comp->opExpr = createOpExpr(">=",compArgs);
+							r->body = appendToTailOfList(r->body,comp);
+						}
+					}
+					i++;
+				}
+	    	}
+			moveRules = createTupleRuleGoalTupleGraphMoveRules(getMatched, negedbRules, edbRules,
+							unLinkedRules);
+		}
+		else if (isSubstr(fmt, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED))
+		{
+	    	FOREACH(DLRule,r,unLinkedRules)
+	    	{
+	    		int i = 0;
+	    		FOREACH(Node,n,r->head->args)
+				{
+	    	    	List *compArgs = NIL;
+
+					if(!isA(n,Constant))
+					{
+						compArgs = appendToTailOfList(compArgs,n);
+
+						// TODO: adding the comparison might be limited in some cases only
+						// e.g., 3hop(X,Y) :- hop(X,A), hop(A,B), hop(B,Y).
+						for(int j = i+1; j < LIST_LENGTH(r->head->args); j++)
+						{
+							if(LIST_LENGTH(compArgs) == 2)
+								compArgs = removeFromTail(compArgs);
+
+							compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
+
+							DLComparison *comp = makeNode(DLComparison);
+							comp->opExpr = createOpExpr(">=",compArgs);
+							r->body = appendToTailOfList(r->body,comp);
+						}
+					}
+					i++;
+				}
+	    	}
+	    	moveRules = createTupleRuleTupleGraphMoveRules(getMatched, negedbRules, edbRules,
+							unLinkedRules);
+		}
 	}
 
     /* ************************************************************ */
