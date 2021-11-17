@@ -123,7 +123,7 @@ extern Node *applyVarMapAsLists(Node *input, List *vars, List *replacements);
 extern DLAtom *getNormalizedAtom(DLAtom *a);
 extern void makeVarNamesUnique(List *nodes);
 extern char *getUnificationString(DLAtom *a);
-
+extern DLAtom *getNormalizedAtomHybrid(DLAtom *a, HashMap *hybrid_set,int *varId);
 
 // properties
 extern Node *getDLProp(DLNode *n, char *key);
