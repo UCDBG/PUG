@@ -291,6 +291,51 @@ getNormalizedAtomHybrid(DLAtom *a, HashMap *hybrid_set,int *varId){
 
     return result;
 }
+DLComparison *
+getNormalizedComparisonHybrid(DLComparison *a, HashMap *hybrid_set,int *varId) {
+    DLComparison *result = copyObject(a);
+    Operator *op = result->opExpr;
+    Set *names = STRSET();
+    makeUniqueVarNamesHybridForComparison(op,hybrid_set,varId,FALSE,names);
+    return result;
+}
+
+void makeUniqueVarNamesHybridForComparison(Operator *op,HashMap *varToNewVar, int *varId, boolean doNotOrigNames,Set *names){
+    Node *type = (Node *) op;
+    if (isA(type,Operator)){
+        List* hybrid_lists = op->args;
+        FOREACH_LC(lc,hybrid_lists){
+            Node * type = (Node *) LC_P_VAL(lc);
+            if (isA(type,Operator)){
+                Operator *o = (Operator *) type;
+                makeUniqueVarNamesHybridForComparison(o,varToNewVar,varId,doNotOrigNames,names);
+            } else if (isA(type,DLVar)){
+
+                DLVar * d = (DLVar *) type;
+                addToSet(names, d->name);
+                char *stringArg = NULL;
+                void *entry = MAP_GET_STRING(varToNewVar,d->name);
+
+                if (entry == NULL)
+                {
+                    // skip varnames that already exist
+                    if (doNotOrigNames)
+                        while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
+                            ;
+                    else
+                        stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++));   
+
+                    MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
+                }
+                else
+                    stringArg = strdup(STRING_VALUE(entry));
+
+                d->name = stringArg;
+            } 
+			
+        }
+    }
+}
 void
 makeVarNamesUnique(List *nodes)
 {

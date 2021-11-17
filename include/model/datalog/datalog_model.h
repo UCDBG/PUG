@@ -14,7 +14,7 @@
 #include "model/node/nodetype.h"
 #include "model/expression/expression.h"
 #include "model/set/hashmap.h"
-
+#include "model/set/set.h"
 // data types
 typedef struct DLNode
 {
@@ -124,6 +124,8 @@ extern DLAtom *getNormalizedAtom(DLAtom *a);
 extern void makeVarNamesUnique(List *nodes);
 extern char *getUnificationString(DLAtom *a);
 extern DLAtom *getNormalizedAtomHybrid(DLAtom *a, HashMap *hybrid_set,int *varId);
+extern DLComparison *getNormalizedComparisonHybrid(DLComparison *a, HashMap *hybrid_set,int *varId);
+extern void makeUniqueVarNamesHybridForComparison(Operator *op,HashMap *varToNewVar, int *varId, boolean doNotOrigNames,Set *names);
 
 // properties
 extern Node *getDLProp(DLNode *n, char *key);
