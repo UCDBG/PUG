@@ -3917,49 +3917,54 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	    }
 	   	DEBUG_LOG("new EDB help rule generated:\n%s", datalogToOverviewString((Node *) negedbRules));
 
-		HashMap *hybrid_set = NEW_MAP(Constant,Constant);
-		int varId = 0;
-		FOREACH_SET(DLAtom, hybrid_head, adornedHybridHeadAtom) {
-			DLRule *atRule;
-			DLAtom *atHead;
-			List *atBody = NIL;
+	   	// Creating an additional rule for the comparison atom to compute hybrid explanations
+	   	if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)){
+			HashMap *hybrid_set = NEW_MAP(Constant,Constant);
+			int varId = 0;
+			FOREACH_SET(DLAtom, hybrid_head, adornedHybridHeadAtom) {
+				DLRule *atRule;
+				DLAtom *atHead;
+				List *atBody = NIL;
 
-			atRule = makeNode(DLRule);
-			char *adAtomName = CONCAT_STRINGS("R", hybrid_head->rel,"_", "WON", NON_LINKED_POSTFIX);
+				atRule = makeNode(DLRule);
+				char *adAtomName = CONCAT_STRINGS("R", hybrid_head->rel,"_", "WON", NON_LINKED_POSTFIX);
 
-			atHead = copyObject(hybrid_head);
-			atHead->rel = adAtomName;
+				atHead = copyObject(hybrid_head);
+				atHead->rel = adAtomName;
 
-			DLAtom *head_lookup;
-			AD_NORM_COPY_HYBRID(head_lookup, atHead, hybrid_set, &varId);
-			atHead = copyObject(head_lookup);
-			FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
-				DLAtom *body;
-				AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
-				char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
-				body->rel = body_name;
-				setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
-				atBody = appendToHeadOfList(atBody,copyObject(body));
+				DLAtom *head_lookup;
+				AD_NORM_COPY_HYBRID(head_lookup, atHead, hybrid_set, &varId);
+				atHead = copyObject(head_lookup);
+				FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
+					DLAtom *body;
+					AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
+					char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+					body->rel = body_name;
+					setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
+					atBody = appendToTailOfList(atBody,copyObject(body));
+				}
+
+				// DLAtom *hybrid_body = copyObject(hybrid_head);
+				// DLAtom *body_lookup;
+
+				// AD_NORM_COPY(body_lookup, hybrid_body->n.properties);
+				// hybrid_body = copyObject(body_lookup);
+				DLComparison *hybrid_body = (DLComparison *)getMapString(hybrid_head->n.properties,DL_ORIG_ATOM);
+				DLComparison *body_lookup;
+				COM_NORM_COPY_HYBRID(body_lookup, hybrid_body, hybrid_set, &varId);
+				atBody = appendToTailOfList(atBody,body_lookup);
+
+				atRule = createDLRule(atHead, atBody);
+
+
+				CONCAT_MAP_LIST(idbAdToRules,(Node *) head_lookup, singleton(atRule));
+				setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) hybrid_head);
+				hybridRules = appendToTailOfList(hybridRules, atRule);
+				helpRules = appendToTailOfList(helpRules, hybridRules);
 			}
-			
-			// DLAtom *hybrid_body = copyObject(hybrid_head);
-			// DLAtom *body_lookup;
+			DEBUG_LOG("new hybrid rule generated:\n%s", datalogToOverviewString((Node *) hybridRules));
+	   	}
 
-			// AD_NORM_COPY(body_lookup, hybrid_body->n.properties);
-			// hybrid_body = copyObject(body_lookup);
-			DLComparison *hybrid_body = (DLComparison *)getMapString(hybrid_head->n.properties,DL_ORIG_ATOM);
-			DLComparison *body_lookup;
-			COM_NORM_COPY_HYBRID(body_lookup, hybrid_body, hybrid_set, &varId);
-			atBody = appendToHeadOfList(atBody,body_lookup);
-
-			atRule = createDLRule(atHead, atBody);
-			
-
-			CONCAT_MAP_LIST(idbAdToRules,(Node *) head_lookup, singleton(atRule));
-			setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) hybrid_head);
-			hybridRules = appendToTailOfList(hybridRules, atRule);
-		}
-		DEBUG_LOG("new hybrid rule generated:\n%s", datalogToOverviewString((Node *) hybridRules));
 
 	   	int edbPos = 1;
 		
