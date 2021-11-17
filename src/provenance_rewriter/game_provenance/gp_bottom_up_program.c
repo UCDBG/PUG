@@ -55,6 +55,19 @@
         DL_COPY_PROP(a,_p,DL_UNDER_NEG_LOST); \
     } while (0)
 
+// new for hybrid.
+#define AD_NORM_COPY_HYBRID(result, a, hybrid_set, varId) \
+	do { \
+        result = getNormalizedAtomHybrid(copyObject((DLAtom *) a), hybrid_set,varId);   \
+        result->negated = FALSE; \
+        DLNode *_p = (DLNode *) result; \
+        _p->properties = NULL; \
+        DL_COPY_PROP(a,_p,DL_WON); \
+        DL_COPY_PROP(a,_p,DL_LOST); \
+        DL_COPY_PROP(a,_p,DL_UNDER_NEG_WON); \
+        DL_COPY_PROP(a,_p,DL_UNDER_NEG_LOST); \
+    } while (0)
+
 static DLProgram *createWhyGPprogram (DLProgram *p, DLAtom *why);
 static DLProgram *createWhyNotGPprogram (DLProgram *p, DLAtom *whyNot);
 static DLProgram *createFullGPprogram (DLProgram *p);
@@ -3412,6 +3425,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     List *moveRules = NIL;
     List *newRuleArg = NIL;
     List *origProg = NIL;
+	// hybrid rules
+	List *hybridRules = NIL;
+	Set *adornedHybridHeadAtom = NODESET();
+	Set *adornedHybridBodyAtom = NODESET();
+
 	Set *adornedEDBAtoms = NODESET();
 	Set *adornedEDBHelpAtoms = NODESET();
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
@@ -3529,8 +3547,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						DLAtom *at;
 						AD_NORM_COPY(at,a);
 						addToSet(adornedEDBAtoms, at);
+						if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)) {
+							DLAtom *att = copyObject(a);
+							addToSet(adornedHybridBodyAtom, att);
+						}
 					}
-
+					
 					boolean ruleWon = DL_HAS_PROP(r,DL_WON)
 											|| DL_HAS_PROP(r,DL_UNDER_NEG_WON);
 
@@ -3573,20 +3595,21 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					a->args = makeNode(List);
 					a->args = hybrid_args(a->args,op);
 					a->n.type = T_DLAtom;
-					// a->rel = "Q_comp1";
 					char rel = atom_position + '0';
 					char p_rel[2]= {rel};
 					char *headPred = r->head->rel;
 					a->rel = CONCAT_STRINGS(headPred, "_comp",p_rel);
 
 //					DL_SET_BOOL_PROP(a, DL_IS_IDB_REL); // make the translated DLComparison to DLAtom IDB
+					setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(new_atom));
 					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
 					{
 						DLAtom *at;
-						AD_NORM_COPY(at,a);
-						addToSet(adornedEDBHelpAtoms, at);
+						at = copyObject(a);
+						// AD_NORM_COPY(at,a);
+						addToSet(adornedHybridHeadAtom, at);
 					}
-					setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(new_atom));
+					
 					char *adHeadName = CONCAT_STRINGS("R",a->rel, "_",
 											ruleWon ? "WON" : "WL",
 											NON_LINKED_POSTFIX);
@@ -3808,6 +3831,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	    //  - create R^adornment(X,TRUE) :- R(X), R^adornment(X,FALSE) :- not R(X) if Won-
 	    //  - create R^adornment(X,FALSE) :- R(X), R^adornment(X,TRUE) :- not R(X) if Lost-
 
+		
 	    FOREACH_SET(DLAtom,edbhelp,adornedEDBHelpAtoms)
 	    {
 	    	// edb help rules for positive
@@ -3882,64 +3906,103 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	    }
 	   	DEBUG_LOG("new EDB help rule generated:\n%s", datalogToOverviewString((Node *) negedbRules));
 
+		HashMap *hybrid_set = NEW_MAP(Constant,Constant);
+		int varId = 0;
+		FOREACH_SET(DLAtom, hybrid_head, adornedHybridHeadAtom) {
+			DLRule *atRule;
+			DLAtom *atHead;
+			List *atBody = NIL;
+
+			atRule = makeNode(DLRule);
+			char *adAtomName = CONCAT_STRINGS("R", hybrid_head->rel,"_", "WON", NON_LINKED_POSTFIX);
+
+			atHead = copyObject(hybrid_head);
+			atHead->rel = adAtomName;
+
+			DLAtom *lookup;
+			AD_NORM_COPY_HYBRID(lookup, atHead, hybrid_set, &varId);
+			atHead = lookup;
+			FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
+				DLAtom *body;
+				AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
+				char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+				body->rel = body_name;
+				setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
+				atBody = appendToHeadOfList(atBody,body);
+			}
+			
+			DLAtom *body = copyObject(hybrid_head);
+			DLAtom *body_lookup;
+			AD_NORM_COPY(body_lookup, body);
+			body = body_lookup;
+			atBody = appendToHeadOfList(atBody,body);
+
+			atRule = createDLRule(atHead, atBody);
+			setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) hybrid_head);
+
+			CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
+		}
+		DEBUG_LOG("new hybrid rule generated:\n%s", datalogToOverviewString((Node *) hybridRules));
+
 	   	int edbPos = 1;
 		
 		// handle the case. Q_comp_N
 		List* atRuleList = NIL;
 	    FOREACH_SET(DLAtom,edb,adornedEDBAtoms)
 	    {
-			if (!isSubstr(edb->rel,"comp")){
-				DLRule *atRule;
-				DLAtom *atHead;
-				DLAtom *atBody;
+			// if (!isSubstr(edb->rel,"comp")){
+			DLRule *atRule;
+			DLAtom *atHead;
+			DLAtom *atBody;
 
-				// positive case
-				atRule = makeNode(DLRule);
-				char *adAtomName = CONCAT_STRINGS("R", edb->rel, "_", "WON", NON_LINKED_POSTFIX);
+			// positive case
+			atRule = makeNode(DLRule);
+			char *adAtomName = CONCAT_STRINGS("R", edb->rel, "_", "WON", NON_LINKED_POSTFIX);
 
-				atHead = copyObject(edb);
-				atHead->rel = adAtomName;
-				atBody = copyObject(edb);
-				setDLProp((DLNode *) atBody, DL_IS_EDB_REL, (Node *) edb);
-				atRule = createDLRule(atHead, singleton(atBody));
+			atHead = copyObject(edb);
+			atHead->rel = adAtomName;
+			atBody = copyObject(edb);
+			setDLProp((DLNode *) atBody, DL_IS_EDB_REL, (Node *) edb);
+			atRule = createDLRule(atHead, singleton(atBody));
 
-				// add rules to new rules list
-				setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edb);
+			// add rules to new rules list
+			setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edb);
 
-				DLAtom *lookup;
-				AD_NORM_COPY(lookup, atRule->head);
-				CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
-				atRuleList = appendToTailOfList(atRuleList,atHead);
-				edbRules = appendToTailOfList(edbRules, atRule);
-				edbPos++;
-			} else {
-				DLRule *atRule;
-				DLAtom *atHead;
-				DLAtom *atBody;
+			DLAtom *lookup;
+			AD_NORM_COPY(lookup, atRule->head);
+			CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
+			atRuleList = appendToTailOfList(atRuleList,atHead);
+			edbRules = appendToTailOfList(edbRules, atRule);
+			edbPos++;
+			// } 
+			// else {
+			// 	DLRule *atRule;
+			// 	DLAtom *atHead;
+			// 	DLAtom *atBody;
 
-				// positive case
-				atRule = makeNode(DLRule);
-				char *adAtomName = CONCAT_STRINGS("R", edb->rel, "_", "WON", NON_LINKED_POSTFIX);
+			// 	// positive case
+			// 	atRule = makeNode(DLRule);
+			// 	char *adAtomName = CONCAT_STRINGS("R", edb->rel, "_", "WON", NON_LINKED_POSTFIX);
 
-				atHead = copyObject(edb);
-				atHead->rel = adAtomName;
-				atBody = copyObject(edb);
-				setDLProp((DLNode *) atBody, DL_IS_EDB_REL, (Node *) edb);
-				atRule = createDLRule(atHead, singleton(atBody));
+			// 	atHead = copyObject(edb);
+			// 	atHead->rel = adAtomName;
+			// 	atBody = copyObject(edb);
+			// 	setDLProp((DLNode *) atBody, DL_IS_EDB_REL, (Node *) edb);
+			// 	atRule = createDLRule(atHead, singleton(atBody));
 
-				// add rules to new rules list
-				setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edb);
+			// 	// add rules to new rules list
+			// 	setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) edb);
 
-				DLAtom *lookup;
-				AD_NORM_COPY(lookup, atRule->head);
-				CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
-				FOREACH(DLAtom,r,atRuleList){
-					atRule->body = appendToTailOfList(atRule->body,r);
-				}
-				edbRules = appendToTailOfList(edbRules, atRule);
-				edbPos++;
+			// 	DLAtom *lookup;
+			// 	AD_NORM_COPY(lookup, atRule->head);
+			// 	CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(atRule));
+			// 	FOREACH(DLAtom,r,atRuleList){
+			// 		atRule->body = appendToTailOfList(atRule->body,r);
+			// 	}
+			// 	edbRules = appendToTailOfList(edbRules, atRule);
+			// 	edbPos++;
 				
-			}
+			// }
 	    }
 	   	DEBUG_LOG("new EDB rule generated:\n%s", datalogToOverviewString((Node *) edbRules));
 	}
