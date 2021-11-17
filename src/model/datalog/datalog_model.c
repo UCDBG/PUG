@@ -22,6 +22,7 @@
 #include "model/datalog/datalog_model.h"
 
 static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames);
+static List *makeUniqueVarNamesHybrid(List *args, int *varId, boolean doNotOrigNames, HashMap* hybrid_map);
 static boolean findVarsVisitor (Node *node, List **context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
@@ -275,12 +276,21 @@ getNormalizedAtom(DLAtom *a)
 {
     DLAtom *result = copyObject(a);
     int varId = 0;
-
+    
     makeUniqueVarNames(result->args, &varId, FALSE);
 
     return result;
 }
 
+DLAtom *
+getNormalizedAtomHybrid(DLAtom *a, HashMap *hybrid_set,int *varId){
+    DLAtom *result = copyObject(a);
+    // int varId = 0;
+
+    makeUniqueVarNamesHybrid(result->args, varId, FALSE, hybrid_set);
+
+    return result;
+}
 void
 makeVarNamesUnique(List *nodes)
 {
@@ -302,6 +312,52 @@ makeVarNamesUnique(List *nodes)
     }
 }
 
+static List *
+makeUniqueVarNamesHybrid (List *args, int *varId, boolean doNotOrigNames,HashMap *varToNewVar)
+{
+    // HashMap *varToNewVar = NEW_MAP(Constant,Constant);
+    
+    Set *names = STRSET();
+
+    FOREACH(Node,arg,args)
+        if (isA(arg,DLVar))
+            addToSet(names, ((DLVar *) arg)->name);
+
+    FOREACH(Node,arg, args)
+    {
+        char *stringArg = NULL;
+
+        if (isA(arg,DLVar))
+        {
+            DLVar *d = (DLVar *) arg;
+            void *entry = MAP_GET_STRING(varToNewVar,d->name);
+
+            if (entry == NULL)
+            {
+                // skip varnames that already exist
+                if (doNotOrigNames)
+                    while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
+                        ;
+                else
+                {
+                    // hop(X,Z,C1), hop(Z,Y,C2), C1 + C2 < 100.
+                    // X : V0; Z : V1; C1 : V2;
+                    // hop(X,v1,v2), hop(v1,v3,v4)
+                    stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++));
+                }
+                    
+
+                MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
+            }
+            else
+                stringArg = strdup(STRING_VALUE(entry));
+
+            d->name = stringArg;
+        }
+    }
+
+    return args;
+}
 static List *
 makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
 {
