@@ -3613,13 +3613,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //					DL_SET_BOOL_PROP(a, DL_IS_IDB_REL); // make the translated DLComparison to DLAtom IDB
 					
 					setDLProp((DLNode *) a, DL_ORIG_ATOM, (Node *) copyObject(new_atom));
-					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
-					{
-						DLAtom *at;
-						at = copyObject(a);
-						// AD_NORM_COPY(at,a);
-						addToSet(adornedHybridHeadAtom, at);
-					}
+					// if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
+					// {
+					DLAtom *at;
+					at = copyObject(a);
+					// AD_NORM_COPY(at,a);
+					addToSet(adornedHybridHeadAtom, at);
+					// }
 					
 					char *adHeadName = CONCAT_STRINGS("R",a->rel, "_",
 											ruleWon ? "WON" : "WL",
@@ -3959,6 +3959,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 				CONCAT_MAP_LIST(idbAdToRules,(Node *) head_lookup, singleton(atRule));
 				setDLProp((DLNode *) atRule->head, DL_ORIG_ATOM, (Node *) hybrid_head);
+				setIDBBody(atRule);
 				hybridRules = appendToTailOfList(hybridRules, atRule);
 				helpRules = appendToTailOfList(helpRules, hybridRules);
 			}
@@ -6497,7 +6498,8 @@ unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
     {
         FOREACH(DLAtom,a,un->body)
         {
-            if (DL_HAS_PROP(a,DL_IS_IDB_REL))
+			Node *at = (Node *)a; 
+            if (isA(at,DLAtom) && DL_HAS_PROP(a,DL_IS_IDB_REL))
             {
 //                boolean hasConst = FALSE;
 //                FOREACH(Node,arg,a->args)

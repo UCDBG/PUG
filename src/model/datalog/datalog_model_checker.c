@@ -184,6 +184,10 @@ checkDLProgram (DLProgram *p)
                             at->rel, arity, datalogToOverviewString((Node *) r));
                     return FALSE;
                 }
+            } 
+            else if (isA(a, DLComparison)) {
+                DLComparison *at = (DLComparison *) a;
+                DL_SET_BOOL_PROP(at,DL_IS_IDB_REL);
             }
         }
     }
