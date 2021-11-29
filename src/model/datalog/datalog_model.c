@@ -25,6 +25,7 @@ static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
 static boolean findVarsVisitor (Node *node, List **context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
+static List *getFuncVars(FunctionCall *func);
 static List *getComparisonVars(DLComparison *a);
 static Node *unificationMutator (Node *node, HashMap *context);
 
@@ -182,7 +183,29 @@ getBodyPredVars (DLRule *r)
 List *
 getHeadVars (DLRule *r)
 {
-    return getAtomVars(r->head);
+	List *result = NIL;
+    //return getAtomVars(r->head);
+	FOREACH(Node,arg,r->head->args)
+	{
+		if(isA(arg, DLVar)){
+			result = appendToTailOfList(result, arg);
+		}
+		else if(isA(arg, FunctionCall)){
+			result = CONCAT_LISTS(result, getFuncVars((FunctionCall *) arg));
+		}
+	}
+	return result;
+}
+
+static List *
+getFuncVars (FunctionCall* func)
+{
+	List *result = NIL;
+	FOREACH(Node,arg,func->args)
+	{
+		result = appendToTailOfList(result, arg);
+	}
+	return result;
 }
 
 List *
