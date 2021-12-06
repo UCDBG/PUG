@@ -185,10 +185,10 @@ checkDLProgram (DLProgram *p)
                     return FALSE;
                 }
             } 
-            else if (isA(a, DLComparison)) {
-                DLComparison *at = (DLComparison *) a;
-                DL_SET_BOOL_PROP(at,DL_IS_IDB_REL);
-            }
+            // else if (isA(a, DLComparison)) {
+            //     DLComparison *at = (DLComparison *) a;
+            //     DL_SET_BOOL_PROP(at,DL_IS_IDB_REL);
+            // }
         }
     }
 
