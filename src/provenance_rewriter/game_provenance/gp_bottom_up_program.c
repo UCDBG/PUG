@@ -3270,7 +3270,7 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 								Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
 		//	                                	removeVars(r->head->args,
 		//	                                        removeVars(r->head->args, ruleArgs))));
-								Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(hybrid_head->args));
+								Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
 
 								DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 								moveRules = appendToTailOfList(moveRules, moveRule);
