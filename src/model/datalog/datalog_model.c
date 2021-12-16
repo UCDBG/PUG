@@ -25,7 +25,6 @@ static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames)
 static boolean findVarsVisitor (Node *node, List **context);
 static List *getAtomVars(DLAtom *a);
 static List *getAtomArgs(DLAtom *a);
-static List *getFuncVars(FunctionCall *func);
 static List *getComparisonVars(DLComparison *a);
 static Node *unificationMutator (Node *node, HashMap *context);
 
@@ -183,21 +182,10 @@ getBodyPredVars (DLRule *r)
 List *
 getHeadVars (DLRule *r)
 {
-	List *result = NIL;
-    //return getAtomVars(r->head);
-	FOREACH(Node,arg,r->head->args)
-	{
-		if(isA(arg, DLVar)){
-			result = appendToTailOfList(result, arg);
-		}
-		else if(isA(arg, FunctionCall)){
-			result = CONCAT_LISTS(result, getFuncVars((FunctionCall *) arg));
-		}
-	}
-	return result;
+    return getAtomVars(r->head);
 }
 
-static List *
+/*static List *
 getFuncVars (FunctionCall* func)
 {
 	List *result = NIL;
@@ -206,7 +194,7 @@ getFuncVars (FunctionCall* func)
 		result = appendToTailOfList(result, arg);
 	}
 	return result;
-}
+}*/
 
 List *
 getVarNames (List *vars)
@@ -230,9 +218,20 @@ unifyRule (DLRule *r, List *headBinds)
     // create map varname to binding
     FORBOTH(Node,v,bind,hVars,headBinds)
     {
-        DLVar *var = (DLVar *) v;
-        MAP_ADD_STRING_KEY(varToBind,var->name,bind);
-        DEBUG_LOG("Var %s bind to %s", var->name, exprToSQL(bind));
+    	if(isA(v,DLVar)){
+    		DLVar *var = (DLVar *) v;
+    		MAP_ADD_STRING_KEY(varToBind,var->name,bind);
+    		DEBUG_LOG("Var %s bind to %s", var->name, exprToSQL(bind));
+    	}
+    	else if(isA(v,FunctionCall)){
+    		FunctionCall *func = (FunctionCall *) v;
+    		char *stringKey = NULL;
+    		FOREACH(DLVar,arg,func->args){
+    			stringKey = CONCAT_STRINGS(func->functionname, arg->name);
+    			MAP_ADD_STRING_KEY(varToBind,stringKey,bind);
+    			DEBUG_LOG("Var %s bind to %s", stringKey, exprToSQL(bind));
+    		}
+    	}
     }
 
     result = (DLRule *) unificationMutator((Node *) result, varToBind);
@@ -441,6 +440,19 @@ unificationMutator (Node *node, HashMap *context)
             return (Node *) copyObject(result);
         }
     }
+    else if(isA(node, FunctionCall))
+    {
+    	FunctionCall *func = (FunctionCall *) node;
+    	char *stringKey = NULL;
+    	FOREACH(DLVar,arg,func->args){
+    		stringKey = CONCAT_STRINGS(func->functionname, arg->name);
+    		if(MAP_HAS_STRING_KEY(context, stringKey)){
+    			Node *result = MAP_GET_STRING(context, stringKey);
+
+    			return (Node*) copyObject(result);
+    		}
+    	}
+    }
 
     return mutate(node, unificationMutator, context);
 }
@@ -491,13 +503,11 @@ static List *
 getAtomVars(DLAtom *a)
 {
     List *result = NIL;
-
     FOREACH(Node,arg,a->args)
     {
-        if(isA(arg, DLVar))
+        if(isA(arg, DLVar) || isA(arg, FunctionCall))
             result = appendToTailOfList(result, arg);
     }
-
     return result;
 }
 
