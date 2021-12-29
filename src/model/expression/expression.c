@@ -207,17 +207,17 @@ Node *
 andExprs (Node *expr, ...)
 {
     Node *result = NULL;
-//    Node *curArg = NULL;
+    Node *curArg = NULL;
     List *argList = singleton(expr);
 
-//    va_list args;
-//
-//    va_start(args, expr);
-//
-//    while((curArg = va_arg(args,Node*)))
-//        argList = appendToTailOfList(argList, copyObject(curArg));
-//
-//    va_end(args);
+    va_list args;
+
+    va_start(args, expr);
+
+    while((curArg = va_arg(args, Node*)))
+        argList = appendToTailOfList(argList, copyObject(curArg));
+
+    va_end(args);
 
     if (LIST_LENGTH(argList) == 1)
         return expr;
@@ -253,17 +253,17 @@ Node *
 orExprs (Node *expr, ...)
 {
     Node *result = NULL;
-//    Node *curArg = NULL;
+    Node *curArg = NULL;
     List *argList = singleton(expr);
 
-//    va_list args;
-//
-//    va_start(args, expr);
-//
-//    while((curArg = va_arg(args,Node*)))
-//        argList = appendToTailOfList(argList, copyObject(curArg));
-//
-//    va_end(args);
+    va_list args;
+
+    va_start(args, expr);
+
+    while((curArg = va_arg(args,Node*)))
+        argList = appendToTailOfList(argList, copyObject(curArg));
+
+    va_end(args);
 
     if (LIST_LENGTH(argList) == 1)
         return expr;
