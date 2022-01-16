@@ -6178,33 +6178,37 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 		{
 			List *domHeads = NIL;
 
-			FOREACH(DLAtom,eachAtom,eachRule->body)
+			FOREACH(Node,n,eachRule->body)
 			{
-				if(eachAtom->negated)
-				{
-					int pos = 1;
+				if(isA(n,DLAtom)) {
+					DLAtom *eachAtom = (DLAtom *) n;
 
-					FOREACH(Node,n,eachAtom->args)
+					if(eachAtom->negated)
 					{
-						if(isA(n,DLVar))
+						int pos = 1;
+
+						FOREACH(Node,n,eachAtom->args)
 						{
-							// capture edb rel name
-							char *headRel = eachAtom->rel;
-							int relLeng = strlen(headRel) - 1;
+							if(isA(n,DLVar))
+							{
+								// capture edb rel name
+								char *headRel = eachAtom->rel;
+								int relLeng = strlen(headRel) - 1;
 
-							headRel = substr(headRel, 1, relLeng);
-							headRel = replaceSubstr(headRel, "_WON", "");
-							headRel = replaceSubstr(headRel, "_nonlinked", "");
+								headRel = substr(headRel, 1, relLeng);
+								headRel = replaceSubstr(headRel, "_WON", "");
+								headRel = replaceSubstr(headRel, "_nonlinked", "");
 
-							char *key = CONCAT_STRINGS(headRel,gprom_itoa(pos));
-							DLAtom *newHead = (DLAtom *) copyObject(MAP_GET_STRING(relPosToDomHead,key));
-							newHead->args = singleton(n);
-							DL_SET_BOOL_PROP(newHead,DL_IS_DOMAIN_REL);
+								char *key = CONCAT_STRINGS(headRel,gprom_itoa(pos));
+								DLAtom *newHead = (DLAtom *) copyObject(MAP_GET_STRING(relPosToDomHead,key));
+								newHead->args = singleton(n);
+								DL_SET_BOOL_PROP(newHead,DL_IS_DOMAIN_REL);
 
-							domHeads = appendToTailOfList(domHeads, newHead);
+								domHeads = appendToTailOfList(domHeads, newHead);
+							}
+
+							pos++;
 						}
-
-						pos++;
 					}
 				}
 			}
