@@ -4707,7 +4707,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 							singleton(createConstBool(FALSE)));
 
 					AD_NORM_COPY_HYBRID(head_lookup, negHead,hybrid_set,&varId);
-					posHead = copyObject(head_lookup);
+					negHead = copyObject(head_lookup);
 					FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
 						DLAtom *body;
 						AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
