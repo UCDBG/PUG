@@ -3267,7 +3267,7 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 							if (ruleWon && a->negated)
 								isNegVar = TRUE;
 
-							if (ruleWon) {
+							if (ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs))) {
 								Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
 		//	                                	removeVars(r->head->args,
 		//	                                        removeVars(r->head->args, ruleArgs))));
