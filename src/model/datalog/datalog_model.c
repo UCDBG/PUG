@@ -20,6 +20,7 @@
 #include "model/set/set.h"
 #include "model/expression/expression.h"
 #include "model/datalog/datalog_model.h"
+#include "utility/string_utils.h"
 
 static List *makeUniqueVarNames (List *args, int *varId, boolean doNotOrigNames);
 static List *makeUniqueVarNamesHybrid(List *args, int *varId, boolean doNotOrigNames, HashMap* hybrid_map);
@@ -375,29 +376,32 @@ makeUniqueVarNamesHybrid (List *args, int *varId, boolean doNotOrigNames,HashMap
         if (isA(arg,DLVar))
         {
             DLVar *d = (DLVar *) arg;
-            void *entry = MAP_GET_STRING(varToNewVar,d->name);
+            if (!isSubstr(d->name,"TF")) {
+                void *entry = MAP_GET_STRING(varToNewVar,d->name);
 
-            if (entry == NULL)
-            {
-                // skip varnames that already exist
-                if (doNotOrigNames)
-                    while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
-                        ;
-                else
+                if (entry == NULL)
                 {
-                    // hop(X,Z,C1), hop(Z,Y,C2), C1 + C2 < 100.
-                    // X : V0; Z : V1; C1 : V2;
-                    // hop(X,v1,v2), hop(v1,v3,v4)
-                    stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++));
+                    // skip varnames that already exist
+                    if (doNotOrigNames)
+                        while(hasSetElem(names, stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++))))
+                            ;
+                    else
+                    {
+                        // hop(X,Z,C1), hop(Z,Y,C2), C1 + C2 < 100.
+                        // X : V0; Z : V1; C1 : V2;
+                        // hop(X,v1,v2), hop(v1,v3,v4)
+                        stringArg = CONCAT_STRINGS("V", gprom_itoa((*varId)++));
+                    }
+                        
+
+                    MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
                 }
-                    
+                else
+                    stringArg = strdup(STRING_VALUE(entry));
 
-                MAP_ADD_STRING_KEY(varToNewVar, d->name, createConstString(stringArg));
+                d->name = stringArg;
             }
-            else
-                stringArg = strdup(STRING_VALUE(entry));
-
-            d->name = stringArg;
+            
         }
     }
 
