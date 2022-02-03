@@ -4690,7 +4690,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					posBody = appendToTailOfList(posBody,body_lookup);
 
 					posRule = createDLRule(posHead,posBody);
-					CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(posRule));
+					// CONCAT_MAP_LIST(idbAdToRules,(Node *) lookup, singleton(posRule));
 					setDLProp((DLNode *) posRule->head, DL_ORIG_ATOM, (Node *) hybrid_head);
 					setIDBBody(posRule);
 					hybridRules = appendToTailOfList(hybridRules, posRule);
