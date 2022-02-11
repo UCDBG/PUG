@@ -109,7 +109,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
         List* unLinkedRules);
 // hybrid.
 static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules,Set* adornedHybridBodyAtom);
+        List* unLinkedRules,Set* MoveHybridAtom);
 static DLComparison* Hybrid_Transform(DLComparison* body);
 static DLRule *createMoveRule(Node *lExpr, Node *rExpr, char *bodyAtomName, List *bodyArgs);
 static Node *createSkolemExpr (GPNodeType type, char *id, List *args);
@@ -3023,7 +3023,7 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
     return moveRules;
 }
 static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules,Set* adornedHybridBodyAtom)
+        List* unLinkedRules,Set* MoveHybridAtom)
 {
 	List *moveRules = NIL;
 
@@ -3254,9 +3254,46 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 						}
 					} else if (isA(at,DLComparison)) {
 						// DLComparison *origAtom = (DLComparison *) DL_GET_PROP(a, DL_ORIG_ATOM);
+
+
 						char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
 							ruleWon ? "_WON" : "_LOST");
-						FOREACH_SET(DLAtom, hybrid_head, adornedHybridBodyAtom) {
+						argsForMoves = copyObject(r->head->args);
+						if (ruleWon && a->negated)
+								isNegVar = TRUE;
+						if (!ruleWon && !LIST_EMPTY(boolArgs))
+						{
+	//						Node *n = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+	//						argsForMoves = replaceNode(argsForMoves,
+	//												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+	//												   isA(n,Operator) ? createConstBool(TRUE): createConstBool(FALSE));
+
+							// check if it is a negated atom
+							Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+
+							if(isA(negVar,Operator))
+							{
+								Operator *o = (Operator *) negVar;
+
+								if(streq(o->name,"not"))
+									isNegVar = TRUE;
+							}
+
+							// set the corresponding Boolean variable to FALSE
+							argsForMoves = replaceNode(argsForMoves,
+													getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+													createConstBool(FALSE));
+						}
+						if (ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs))) {
+							Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
+	//	                                	removeVars(r->head->args,
+	//	                                        removeVars(r->head->args, ruleArgs))));
+							Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
+
+							DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+							moveRules = appendToTailOfList(moveRules, moveRule);
+						}
+						FOREACH_SET(DLAtom, hybrid_head, MoveHybridAtom) {
 							char *atomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
 								ruleWon ? "_WON" : "_LOST");
 							char *negAtomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
@@ -3264,23 +3301,37 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 
 							argsForMoves = copyObject(r->head->args);
 
+
 							if (ruleWon && a->negated)
 								isNegVar = TRUE;
+							if (!ruleWon && !LIST_EMPTY(boolArgs))
+							{
+		//						Node *n = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+		//						argsForMoves = replaceNode(argsForMoves,
+		//												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+		//												   isA(n,Operator) ? createConstBool(TRUE): createConstBool(FALSE));
 
+								// check if it is a negated atom
+								Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+
+								if(isA(negVar,Operator))
+								{
+									Operator *o = (Operator *) negVar;
+
+									if(streq(o->name,"not"))
+										isNegVar = TRUE;
+								}
+
+								// set the corresponding Boolean variable to FALSE
+								argsForMoves = replaceNode(argsForMoves,
+														getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+														createConstBool(FALSE));
+							}
 							if (ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs))) {
-								Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
-		//	                                	removeVars(r->head->args,
-		//	                                        removeVars(r->head->args, ruleArgs))));
-								Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
+								Node *lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
+								Node *rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(hybrid_head->args));
 
 								DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-								moveRules = appendToTailOfList(moveRules, moveRule);
-
-
-								lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
-								rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(hybrid_head->args));
-
-								moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 								moveRules = appendToTailOfList(moveRules, moveRule);
 							}
 						}
@@ -4108,6 +4159,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	List *hybridRules = NIL;
 	Set *adornedHybridHeadAtom = NODESET();
 	Set *adornedHybridBodyAtom = NODESET();
+	Set *MoveHybridAtom = NODESET();
 
 	Set *adornedEDBAtoms = NODESET();
 	Set *adornedEDBHelpAtoms = NODESET();
@@ -4225,6 +4277,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				Node *atom = (Node *) a;
 				if(isA(atom,DLAtom))
 				{
+					if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)) {
+						DLAtom* moveAtom = copyObject(a);
+						addToSet(MoveHybridAtom,moveAtom);
+					}
 					// if an edb atom
 					if (!DL_HAS_PROP(a, DL_IS_IDB_REL))
 					{
@@ -5777,7 +5833,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		if (isSubstr(fmt, DL_PROV_FORMAT_GP_REDUCED))
 		{
 			moveRules = createGPReducedMoveRulesHybrid(getMatched, negedbRules, edbRules,
-			                        unLinkedRules,adornedHybridBodyAtom);
+			                        unLinkedRules,MoveHybridAtom);
 		}
 		else if (isSubstr(fmt, DL_PROV_FORMAT_TUPLE_RULE_TUPLE))
 		{
