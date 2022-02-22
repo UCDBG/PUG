@@ -499,9 +499,15 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
     }
 
     // check head if agg functions exist
+    int i = 0;
     FOREACH(Node,ha,r->head->args)
+    {
     	if (isA(ha,FunctionCall))
-    		p->func = appendToTailOfList(p->func, ha);
+    	{
+    		addToMap(p->func,ha,(Node *)createConstInt(i));
+    	}
+    	i++;
+    }
 }
 
 /*

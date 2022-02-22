@@ -3878,7 +3878,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	       	edbPos++;
 	    }
 	   	DEBUG_LOG("new EDB rule generated:\n%s", datalogToOverviewString((Node *) edbRules));
-	}
+	} // case for whynot prov advance ends here
 	else
 	{
 		List *doubleNeg = NIL;
@@ -6194,6 +6194,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
     newP->rules = newRules;
     newP->n.properties = copyObject(p->n.properties);
     newP->sumOpts = p->sumOpts;
+    newP->func = p->func;
 //    newP->comp = p->comp;
 
     setDLProp((DLNode *) newP, DL_MAP_RELNAME_TO_RULES, (Node *) newPredToRules);

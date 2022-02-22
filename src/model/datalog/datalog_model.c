@@ -84,7 +84,7 @@ createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func, 
     result->facts = facts;
     result->ans = ans;
     result->doms = doms;
-    result->func = func;
+    result->func = NEW_MAP(DLAtom, Constant);
     result->sumOpts = sumOpts;
 
     return result;
