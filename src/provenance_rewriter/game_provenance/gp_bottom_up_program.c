@@ -3293,12 +3293,16 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 							DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 							moveRules = appendToTailOfList(moveRules, moveRule);
 						}
+						int hybrid_index = 0;
 						FOREACH_SET(DLAtom, hybrid_head, MoveHybridAtom) {
+							// char *atomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
+							// 	ruleWon ? "_WON" : "_LOST");
+							// char *negAtomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
+							// 	ruleWon ? "_LOST" : "_WON");
 							char *atomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
-								ruleWon ? "_WON" : "_LOST");
+								"_TF",gprom_itoa(hybrid_index));
 							char *negAtomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
-								ruleWon ? "_LOST" : "_WON");
-
+								"_TF",gprom_itoa(hybrid_index));
 							argsForMoves = copyObject(r->head->args);
 
 
@@ -3334,6 +3338,7 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 								DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 								moveRules = appendToTailOfList(moveRules, moveRule);
 							}
+							hybrid_index++;
 						}
 					}
 					
@@ -7157,9 +7162,26 @@ createSkolemExpr (GPNodeType type, char *id, List *args)
                             createConstString("GOALHYPEREDGE_"));
             break;
     }
-    concatArgs = appendToTailOfList(concatArgs,
+    
+	
+	boolean is_TF = FALSE;
+	if (isSubstr(id,"TF")) {
+		char *ans = NULL;
+		ans = strtok(id, "_");
+		is_TF = TRUE; 
+		concatArgs = appendToTailOfList(concatArgs,createConstString(CONCAT_STRINGS(ans,"_")));
+		while(ans != NULL && !isSubstr(ans,"TF"))
+		{
+			ans = strtok(NULL, "_");
+		}
+		// result.
+		concatArgs = appendToTailOfList(concatArgs,createDLVar(ans, DT_BOOL));
+	} else {
+		concatArgs = appendToTailOfList(concatArgs,
                 createConstString(id));
+	}
 
+	
     concatArgs = appendToTailOfList(concatArgs,
                 createConstString("("));
 
@@ -7179,10 +7201,24 @@ createSkolemExpr (GPNodeType type, char *id, List *args)
 
     // create expression to concatenate parts of the skolem string
     result = popHeadOfListP(concatArgs);
-    while(!LIST_EMPTY(concatArgs))
-   		result = (Node *) createOpExpr("||",
-    				LIST_MAKE(result,popHeadOfListP(concatArgs)));
 
+	// for why-not hybrid question 
+	if (is_TF) {
+		
+		result = (Node *) createOpExpr("||",
+				LIST_MAKE(result,popHeadOfListP(concatArgs),popHeadOfListP(concatArgs)));
+		while(!LIST_EMPTY(concatArgs)) {
+			result = (Node *) createOpExpr("||",
+				LIST_MAKE(result,popHeadOfListP(concatArgs)));
+		}
+	} else {
+		while(!LIST_EMPTY(concatArgs)) {
+			result = (Node *) createOpExpr("||",
+				LIST_MAKE(result,popHeadOfListP(concatArgs)));
+		}
+	}
+	
+   		
     DEBUG_LOG("result expression is: %s", exprToSQL(result));
 
     return (Node *) result;

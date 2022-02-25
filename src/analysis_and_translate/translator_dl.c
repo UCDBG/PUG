@@ -51,6 +51,10 @@ static Node *createCondFromComparisons (List *comparisons, QueryOperator *in, Ha
 static List *connectProgramTranslation(DLProgram *p, HashMap *predToTrans);
 static boolean adaptProjectionAttrRef (QueryOperator *o, void *context);
 
+
+// hybrid 
+static Node* hybrid_traverse(Node* newA);
+
 static Node *replaceVarWithAttrRef(Node *node, List *context);
 //static boolean castChecker = FALSE; // check if cast is needed between "DOMAIN" and "REL"
 //static boolean castForPos = FALSE; // check if cast is needed between positive translation and negative
@@ -1155,10 +1159,17 @@ getHeadProjectionExprs (DLAtom *head, QueryOperator *joinedGoals, List *bodyArgs
     		if(!searchListString(negBoolDone,dv->name))
     			negBoolDone = appendToTailOfList(negBoolDone, dv->name);
         }
+        if (isA(newA,Operator)) {
+            // Operator *op = (Operator*) newA;
+            // List *Args = op->args;
+            // hybrid_traverse(Args);
+            newA = hybrid_traverse(newA);
+        }
+        DEBUG_LOG(datalogToOverviewString((Node *) newA));
 
         projExprs = appendToTailOfList(projExprs, newA);
+        
     }
-
     return projExprs;
 }
 
@@ -2760,3 +2771,51 @@ adaptProjectionAttrRef (QueryOperator *o, void *context)
     return TRUE;
 }
 
+static Node*
+hybrid_traverse(Node* node) {
+    if (!isA(node,Operator)) return node;
+    Operator *op = (Operator*) node;
+    List* newList = NIL;
+    boolean is_TF = TRUE;
+
+
+    FOREACH(Node,p,op->args) {
+        if (isA(p,Operator)) {
+            is_TF = FALSE;
+            newList = appendToTailOfList(newList,hybrid_traverse(p));
+        } else if (isA(p,AttributeReference) && is_TF) {
+
+            Node *right = (Node *) createConstBoolFromString("TRUE");
+            Node *cond = (Node *) createOpExpr("=",LIST_MAKE(p,right));
+            Node *then = (Node *) createConstString("WON");
+            Node *els = (Node *) createConstString("LOST");
+            CaseWhen *caseWhen = createCaseWhen(cond,then);
+            CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+            newList = appendToTailOfList(newList,caseExpr);
+            // return (Node *) caseExpr;
+        } else {
+            newList = appendToTailOfList(newList,p);
+        }
+    }
+    op->args = newList;
+    return (Node *) op;
+    
+    // FOREACH(Node,p,projection) {
+    //     if (isA(p,Operator)) {
+    //         Operator* temp = (Operator*) p;
+    //         List* pList = hybrid_traverse(temp->args);
+            
+    //         break;
+    //     } else {
+    //         if (isA(p,AttributeReference)) {
+    //             Node *right = (Node *) createConstBoolFromString("TRUE");
+    //             Node *cond = (Node *) createOpExpr("=",LIST_MAKE(p,right));
+    //             Node *then = (Node *) createConstString("WON");
+    //             Node *els = (Node *) createConstString("LOST");
+    //             CaseWhen *caseWhen = createCaseWhen(cond,then);
+    //             CaseExpr *caseExpr = createCaseExpr(NULL, singleton(caseWhen), els);
+    //             p = (Node *) caseExpr;
+    //         }
+    //     }
+    // }
+}
