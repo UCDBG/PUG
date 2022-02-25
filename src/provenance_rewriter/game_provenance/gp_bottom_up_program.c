@@ -3293,21 +3293,24 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 							DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 							moveRules = appendToTailOfList(moveRules, moveRule);
 						}
+
 						int hybrid_index = 0;
+
 						FOREACH_SET(DLAtom, hybrid_head, MoveHybridAtom) {
-							// char *atomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
-							// 	ruleWon ? "_WON" : "_LOST");
-							// char *negAtomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
-							// 	ruleWon ? "_LOST" : "_WON");
-							char *atomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
+							 char *atomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
+							 	ruleWon ? "_WON" : "_LOST");
+							 char *negAtomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
+							 	ruleWon ? "_LOST" : "_WON");
+							char *atomRelHybrid = CONCAT_STRINGS(strdup(hybrid_head->rel),
 								"_TF",gprom_itoa(hybrid_index));
-							char *negAtomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
+							char *negAtomRelHybrid = CONCAT_STRINGS(strdup(hybrid_head->rel),
 								"_TF",gprom_itoa(hybrid_index));
 							argsForMoves = copyObject(r->head->args);
 
 
 							if (ruleWon && a->negated)
 								isNegVar = TRUE;
+
 							if (!ruleWon && !LIST_EMPTY(boolArgs))
 							{
 		//						Node *n = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
@@ -3330,14 +3333,22 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 								argsForMoves = replaceNode(argsForMoves,
 														getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
 														createConstBool(FALSE));
-							}
-							if (ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs))) {
+
 								Node *lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
-								Node *rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(hybrid_head->args));
+								Node *rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRelHybrid : atomRelHybrid, copyObject(hybrid_head->args));
 
 								DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 								moveRules = appendToTailOfList(moveRules, moveRule);
 							}
+
+							if (ruleWon) {
+								lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
+								rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(hybrid_head->args));
+
+								moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+								moveRules = appendToTailOfList(moveRules, moveRule);
+							}
+
 							hybrid_index++;
 						}
 					}
