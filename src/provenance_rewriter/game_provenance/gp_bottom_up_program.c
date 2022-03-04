@@ -4269,7 +4269,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 	                    numGoals++; // For calculation of length of only new args
 	                    newRuleArg = appendToTailOfList(newRuleArg, copyObject(createArgs));
-	        	    } else if (isA(n,DLComparison)) {
+	        	    }
+	        	    // Generate additional boolean variable only for HYBRID
+	        	    else if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID) && isA(n,DLComparison)) {
 						vName = CONCAT_STRINGS("TF", gprom_itoa(j++));
 	                    createArgs = createDLVar(vName, DT_BOOL);
 						numGoals++; // For calculation of length of only new args
