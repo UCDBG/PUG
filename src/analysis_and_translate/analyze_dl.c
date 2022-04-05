@@ -497,17 +497,6 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
 			DEBUG_LOG("comparison expression:\n%s", datalogToOverviewString(p->comp));
         }
     }
-
-    // check head if agg functions exist
-    int i = 0;
-    FOREACH(Node,ha,r->head->args)
-    {
-    	if (isA(ha,FunctionCall))
-    	{
-    		addToMap(p->func,ha,(Node *)createConstInt(i));
-    	}
-    	i++;
-    }
 }
 
 /*

@@ -84,7 +84,7 @@ createDLProgram (List *dlRules, List *facts, char *ans, List *doms, List *func, 
     result->facts = facts;
     result->ans = ans;
     result->doms = doms;
-    result->func = NEW_MAP(DLAtom, Constant);
+    result->func = NEW_MAP(Node, Node);
     result->sumOpts = sumOpts;
 
     return result;
@@ -225,12 +225,12 @@ unifyRule (DLRule *r, List *headBinds)
     	}
     	else if(isA(v,FunctionCall)){
     		FunctionCall *func = (FunctionCall *) v;
-    		char *stringKey = NULL;
+    		char *stringKey = func->functionname;
     		FOREACH(DLVar,arg,func->args){
-    			stringKey = CONCAT_STRINGS(func->functionname, arg->name);
-    			MAP_ADD_STRING_KEY(varToBind,stringKey,bind);
+    			stringKey = CONCAT_STRINGS(stringKey, arg->name);
     			DEBUG_LOG("Var %s bind to %s", stringKey, exprToSQL(bind));
     		}
+    		MAP_ADD_STRING_KEY(varToBind,stringKey,bind);
     	}
     }
 
@@ -443,15 +443,15 @@ unificationMutator (Node *node, HashMap *context)
     else if(isA(node, FunctionCall))
     {
     	FunctionCall *func = (FunctionCall *) node;
-    	char *stringKey = NULL;
+    	char *stringKey = func->functionname;
     	FOREACH(DLVar,arg,func->args){
-    		stringKey = CONCAT_STRINGS(func->functionname, arg->name);
-    		if(MAP_HAS_STRING_KEY(context, stringKey)){
-    			Node *result = MAP_GET_STRING(context, stringKey);
-
-    			return (Node*) copyObject(result);
-    		}
+    		stringKey = CONCAT_STRINGS(stringKey, arg->name);
     	}
+    	if(MAP_HAS_STRING_KEY(context, stringKey)){
+			Node *result = MAP_GET_STRING(context, stringKey);
+
+			return (Node*) copyObject(result);
+		}
     }
 
     return mutate(node, unificationMutator, context);

@@ -85,7 +85,7 @@ static DLRule *createMoveRule(Node *lExpr, Node *rExpr, char *bodyAtomName, List
 static Node *createSkolemExpr (GPNodeType type, char *id, List *args);
 
 static DLProgram *unifyProgram (DLProgram *p, DLAtom *question);
-static void unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom);
+static void unifyOneWithRuleHeads(DLProgram *p, HashMap *pToR, HashMap *rToUn, DLAtom *curAtom);
 static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 
 //char *idbHeadPred = NULL;
@@ -3562,6 +3562,15 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				}
 			}
 
+			//create new rule if function call exists
+			if(hasMapStringKey(solvedProgram->func, r->head->rel)){
+				vName = CONCAT_STRINGS(r->head->rel, "`");
+				DLAtom *newHead = createDLAtom(vName, r->head->args, r->head->negated);
+				DLRule *newRule = createDLRule(newHead, ruleRule->body);
+				ruleRule->body = appendToHeadOfList(ruleRule->body, newHead);
+				solvedProgram->rules = appendToTailOfList(solvedProgram->rules, newRule);
+			}
+
 			DEBUG_LOG("created new rule:\n%s", datalogToOverviewString((Node *) ruleRule));
 	        // create rule head^adornment :- rule^adornment
 	        DEBUG_LOG("create GP HEAD rule for %s based on rule:\n%s", adHeadName, datalogToOverviewString((Node *) r));
@@ -6165,7 +6174,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
 
     // unify rule bodies starting with constants provided by the user query
     // e.g., Why(Q(1))
-    unifyOneWithRuleHeads(predToRules, predToUnRules, question);
+    unifyOneWithRuleHeads(p, predToRules, predToUnRules, question);
 
     DEBUG_NODE_BEATIFY_LOG("predToUnRules:", predToUnRules);
 
@@ -6194,7 +6203,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
     newP->rules = newRules;
     newP->n.properties = copyObject(p->n.properties);
     newP->sumOpts = p->sumOpts;
-    newP->func = p->func;
+    newP->func = copyObject(p->func);
 //    newP->comp = p->comp;
 
     setDLProp((DLNode *) newP, DL_MAP_RELNAME_TO_RULES, (Node *) newPredToRules);
@@ -6207,7 +6216,7 @@ unifyProgram (DLProgram *p, DLAtom *question)
 }
 
 static void
-unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
+unifyOneWithRuleHeads(DLProgram *p, HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
 {
     List *vals; //= curAtom->args;
 //    char *unRel = curAtom->rel;
@@ -6240,9 +6249,15 @@ unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
 
         ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
         un = unifyRule(r,vals);
+
+        // check for function call in head atom
+        FOREACH(Node, a, r->head->args)
+        {
+        	if(isA(a, FunctionCall))
+        		addToMap(p->func, (Node*) un->head, (Node*) r->head);
+        }
         unRules = appendToTailOfList(unRules, un);
         setDLProp((DLNode *) r,DL_ORIGINAL_RULE, (Node *) createConstInt(ruleId));
-
         DEBUG_LOG("unified rule with head %s\nRule: %s\nUnified Rules: %s",
                 datalogToOverviewString((Node *) curAtom),
                 datalogToOverviewString((Node *) r),
@@ -6266,7 +6281,7 @@ unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom)
 //                    if (isA(arg,Constant))
 //                        hasConst = TRUE;
 //                if (hasConst)
-                unifyOneWithRuleHeads(pToR,rToUn,a);
+                unifyOneWithRuleHeads(p, pToR,rToUn, a);
             }
         }
     }
