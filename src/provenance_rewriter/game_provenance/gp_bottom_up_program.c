@@ -3563,12 +3563,18 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			}
 
 			//create new rule if function call exists
-			if(hasMapStringKey(solvedProgram->func, r->head->rel)){
-				vName = CONCAT_STRINGS(r->head->rel, "`");
-				DLAtom *newHead = createDLAtom(vName, r->head->args, r->head->negated);
+			if(hasMapKey(solvedProgram->func,(Node *) r->head)){
+				char *hName = CONCAT_STRINGS(r->head->rel, "_new");
+
+				// Creating an additional rule for, e.g., Q(X,avg(C1))
+				DLAtom *newHead = createDLAtom(hName, r->head->args, r->head->negated);
 				DLRule *newRule = createDLRule(newHead, ruleRule->body);
+
+				// Add the new head to the body of ruleRule
 				ruleRule->body = appendToHeadOfList(ruleRule->body, newHead);
-				solvedProgram->rules = appendToTailOfList(solvedProgram->rules, newRule);
+
+				unLinkedRules = appendToTailOfList(unLinkedRules, newRule);
+//				solvedProgram->rules = appendToTailOfList(solvedProgram->rules, newRule);
 			}
 
 			DEBUG_LOG("created new rule:\n%s", datalogToOverviewString((Node *) ruleRule));
@@ -6371,6 +6377,11 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
                     (Node *) createConstBool(TRUE));
             setDLProp((DLNode *) adornedHead, state,
                     (Node *) createConstBool(TRUE));
+
+            // update the p->func with the updated key
+            if(hasMapKey(p->func, (Node *) r->head)) {
+            	//TODO: create new head atom with properties and replace the original entry with the updated one.
+            }
 
             if (!hasSetElem(doneAd, adornedHead))
                 addToSet(doneAd, copyObject(adornedHead));
