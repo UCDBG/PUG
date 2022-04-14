@@ -3573,7 +3573,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				// Add the new head to the body of ruleRule
 				ruleRule->body = appendToHeadOfList(ruleRule->body, newHead);
 
-				unLinkedRules = appendToTailOfList(unLinkedRules, newRule);
+				helpRules = appendToTailOfList(helpRules, newRule);
 //				solvedProgram->rules = appendToTailOfList(solvedProgram->rules, newRule);
 			}
 
@@ -6364,7 +6364,9 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
         {
             char *state = neg ? DL_LOST : DL_WON;
             DLAtom *adornedHead;
+            DLAtom *origHead;
 
+            NORM_COPY(origHead, r->head);
             NORM_COPY(adornedHead, r->head);
 
             DEBUG_LOG("head atom %s matching normalized user question %s",
@@ -6379,8 +6381,13 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
                     (Node *) createConstBool(TRUE));
 
             // update the p->func with the updated key
-            if(hasMapKey(p->func, (Node *) r->head)) {
+            if(hasMapKey(p->func, (Node *) origHead))
+            {
             	//TODO: create new head atom with properties and replace the original entry with the updated one.
+            	Node *element = getMap(p->func, (Node *) origHead);
+
+            	removeMapElem(p->func, (Node *) origHead);
+            	addToMap(p->func, (Node *) adornedHead, element);
             }
 
             if (!hasSetElem(doneAd, adornedHead))
