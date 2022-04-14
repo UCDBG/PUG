@@ -3564,17 +3564,28 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 			//create new rule if function call exists
 			if(hasMapKey(solvedProgram->func,(Node *) r->head)){
-				char *hName = CONCAT_STRINGS(r->head->rel, "_new");
+				DLAtom *newHead;
+
+				//TODO: better way to create a unique head predicate, e.g., Q_new_WON_nonlinked(X,avg(C1))
+				char *newRel = CONCAT_STRINGS(r->head->rel, "_new");
+
+				//TODO: how to handle why-not
+				char *hName = CONCAT_STRINGS(newRel, "_", ruleWon ? "WON" : "LOST", NON_LINKED_POSTFIX);
 
 				// Creating an additional rule for, e.g., Q(X,avg(C1))
-				DLAtom *newHead = createDLAtom(hName, r->head->args, r->head->negated);
-				DLRule *newRule = createDLRule(newHead, ruleRule->body);
+				newHead = createDLAtom(hName, r->head->args, r->head->negated);
+				setDLProp((DLNode *) newHead, DL_ORIG_ATOM, (Node *) copyObject(r->head));
+
+				DLRule *newRule = createDLRule(newHead, copyObject(ruleRule->body));
 
 				// Add the new head to the body of ruleRule
 				ruleRule->body = appendToHeadOfList(ruleRule->body, newHead);
 
+				DLAtom *lookupAtom;
+				AD_NORM_COPY(lookupAtom,newHead);
+				CONCAT_MAP_LIST(idbAdToRules,(Node *) lookupAtom, singleton(newRule));
+
 				helpRules = appendToTailOfList(helpRules, newRule);
-//				solvedProgram->rules = appendToTailOfList(solvedProgram->rules, newRule);
 			}
 
 			DEBUG_LOG("created new rule:\n%s", datalogToOverviewString((Node *) ruleRule));
