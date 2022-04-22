@@ -4750,14 +4750,14 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					DLAtom *head_lookup;
 					AD_NORM_COPY_HYBRID(head_lookup, posHead,hybrid_set,&varId);
 					posHead = copyObject(head_lookup);
-					FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
-						DLAtom *body;
-						AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
-						// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
-						// body->rel = body_name;
-						setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
-						posBody = appendToTailOfList(posBody,copyObject(body));
-					}
+					// FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
+					// 	DLAtom *body;
+					// 	AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
+					// 	// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+					// 	// body->rel = body_name;
+					// 	setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
+					// 	posBody = appendToTailOfList(posBody,copyObject(body));
+					// }
 					DLComparison *hybrid_body = (DLComparison *)getMapString(hybrid_head->n.properties,DL_ORIG_ATOM);
 					DLComparison *body_lookup;
 					COM_NORM_COPY_HYBRID(body_lookup, hybrid_body, hybrid_set, &varId);
@@ -4782,14 +4782,14 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					AD_NORM_COPY_HYBRID(head_lookup, negHead,hybrid_set,&varId);
 					negHead = copyObject(head_lookup);
-					FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
-						DLAtom *body;
-						AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
-						// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
-						// body->rel = body_name;
-						setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
-						negBody = appendToTailOfList(negBody,copyObject(body));
-					}
+					// FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
+					// 	DLAtom *body;
+					// 	AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
+					// 	// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+					// 	// body->rel = body_name;
+					// 	setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
+					// 	negBody = appendToTailOfList(negBody,copyObject(body));
+					// }
 					hybrid_body = (DLComparison *)getMapString(hybrid_head->n.properties,DL_ORIG_ATOM);
 					hybrid_body = Hybrid_Transform(hybrid_body);
 
@@ -6088,6 +6088,7 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 		// store the pair of each variable in positive goals and positive relation names
 		HashMap *varToDom = NEW_MAP(Constant,Node);
 		HashMap *relPosToDomHead = NEW_MAP(Constant,Node);
+		HashMap *PredecateToDomHybrid = NEW_MAP(Constant,Node);
 
 		FOREACH(DLRule,r,unifiedRule)
 		{
@@ -6157,6 +6158,21 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 
 						pos++;
 					}
+				} else if (isA(ba,DLComparison)) {
+					int pos = 1;
+					DLComparison* dlba = (DLComparison*) ba;
+					List* predicateGoal = NIL;
+					predicateGoal = hybrid_args(predicateGoal,dlba->opExpr);
+					FOREACH(Node,n,predicateGoal) {
+						if(isA(n,DLVar))
+						{
+							DLVar *v = (DLVar *) n;
+							DLRule *domRule = (DLRule *) MAP_GET_STRING(varToDom,v->name);
+							char *key = CONCAT_STRINGS(gprom_itoa(pos));
+							MAP_ADD_STRING_KEY(PredecateToDomHybrid,key,domRule->head);
+						}
+						pos++;
+					}
 				}
 			}
 
@@ -6203,6 +6219,9 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 						}
 						pos++;
 					}
+				}
+				else if (isA(ba,DLComparison)) {
+					
 				}
 			}
 
@@ -6283,6 +6302,23 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 
 							pos++;
 						}
+					}
+				} else if (isA(n,DLComparison)) {
+					List* predicateHybrid = NIL;
+					DLComparison* predicateNode = (DLComparison*) n;
+					predicateHybrid = hybrid_args(predicateHybrid,predicateNode->opExpr);
+					int pos = 1;
+					FOREACH(Node,n,predicateHybrid) {
+						if (isA(n,DLVar)) {
+							// DLVar* v = (DLVar*) n;
+							char* headRel = CONCAT_STRINGS(gprom_itoa(pos));
+							DLAtom *newHead = (DLAtom *) copyObject(MAP_GET_STRING(PredecateToDomHybrid,headRel));
+							newHead->args = singleton(n);
+							DL_SET_BOOL_PROP(newHead,DL_IS_DOMAIN_REL);
+
+							domHeads = appendToTailOfList(domHeads, newHead);
+						}
+						pos++;
 					}
 				}
 			}
