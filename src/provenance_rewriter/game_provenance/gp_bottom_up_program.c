@@ -3293,64 +3293,6 @@ static List*createGPReducedMoveRulesHybrid(int getMatched, List* negedbRules, Li
 							DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
 							moveRules = appendToTailOfList(moveRules, moveRule);
 						}
-
-						int hybrid_index = 0;
-
-						FOREACH_SET(DLAtom, hybrid_head, MoveHybridAtom) {
-							 char *atomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
-							 	ruleWon ? "_WON" : "_LOST");
-							 char *negAtomRel = CONCAT_STRINGS(strdup(hybrid_head->rel),
-							 	ruleWon ? "_LOST" : "_WON");
-							char *atomRelHybrid = CONCAT_STRINGS(strdup(hybrid_head->rel),
-								"_TF",gprom_itoa(hybrid_index));
-							char *negAtomRelHybrid = CONCAT_STRINGS(strdup(hybrid_head->rel),
-								"_TF",gprom_itoa(hybrid_index));
-							argsForMoves = copyObject(r->head->args);
-
-
-							if (ruleWon && a->negated)
-								isNegVar = TRUE;
-
-							if (!ruleWon && !LIST_EMPTY(boolArgs))
-							{
-		//						Node *n = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
-		//						argsForMoves = replaceNode(argsForMoves,
-		//												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-		//												   isA(n,Operator) ? createConstBool(TRUE): createConstBool(FALSE));
-
-								// check if it is a negated atom
-								Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
-
-								if(isA(negVar,Operator))
-								{
-									Operator *o = (Operator *) negVar;
-
-									if(streq(o->name,"not"))
-										isNegVar = TRUE;
-								}
-
-								// set the corresponding Boolean variable to FALSE
-								argsForMoves = replaceNode(argsForMoves,
-														getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-														createConstBool(FALSE));
-
-								Node *lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
-								Node *rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRelHybrid : atomRelHybrid, copyObject(hybrid_head->args));
-
-								DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-								moveRules = appendToTailOfList(moveRules, moveRule);
-							}
-
-							if (ruleWon) {
-								lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
-								rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(hybrid_head->args));
-
-								moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-								moveRules = appendToTailOfList(moveRules, moveRule);
-							}
-
-							hybrid_index++;
-						}
 					}
 					
 				}
@@ -4688,9 +4630,11 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	   	// Creating an additional rule for the comparison atom to compute hybrid explanations
 	   	if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)){
 			
-			HashMap *hybrid_set = NEW_MAP(Constant,Constant);
-			int varId = 0;
+			
+			
 			FOREACH_SET(DLAtom, hybrid_head, adornedHybridHeadAtom) {
+				HashMap *hybrid_set = NEW_MAP(Constant,Constant);
+				int varId = 0;
 				boolean ruleWon = DL_HAS_PROP(hybrid_head,DL_WON)
 	                           || DL_HAS_PROP(hybrid_head,DL_UNDER_NEG_WON);
 				if (ruleWon) {
@@ -5495,6 +5439,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             {
 				DLAtom *at = (DLAtom *) copyObject(a);
 				DLAtom *lookup;
+				// AD_NORM_COPY_HYBRID(lookup,at);
 				AD_NORM_COPY(lookup,at);
 				DL_DEL_PROP(at,DL_IS_IDB_REL);
 				List *goalRules = (List *) getMap(idbAdToRules, (Node *) lookup);
@@ -6092,6 +6037,7 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 
 		FOREACH(DLRule,r,unifiedRule)
 		{
+			int goalPos = 1;
 			FOREACH(Node,ba,r->body)
 			{
 				if(isA(ba,DLAtom) && DL_HAS_PROP(ba, DL_IS_EDB_REL))
@@ -6168,12 +6114,13 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 						{
 							DLVar *v = (DLVar *) n;
 							DLRule *domRule = (DLRule *) MAP_GET_STRING(varToDom,v->name);
-							char *key = CONCAT_STRINGS(gprom_itoa(pos));
+							char *key = CONCAT_STRINGS("RQ_comp",gprom_itoa(goalPos),gprom_itoa(pos));
 							MAP_ADD_STRING_KEY(PredecateToDomHybrid,key,domRule->head);
 						}
 						pos++;
 					}
 				}
+				goalPos++;
 			}
 
 			// domain predicate for the head atom
@@ -6308,12 +6255,16 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 					DLComparison* predicateNode = (DLComparison*) n;
 					predicateHybrid = hybrid_args(predicateHybrid,predicateNode->opExpr);
 					int pos = 1;
-					FOREACH(Node,n,predicateHybrid) {
-						if (isA(n,DLVar)) {
+					FOREACH(Node,node,predicateHybrid) {
+						if (isA(node,DLVar)) {
 							// DLVar* v = (DLVar*) n;
-							char* headRel = CONCAT_STRINGS(gprom_itoa(pos));
+							char* headRel = eachRule->head->rel;
+							headRel = replaceSubstr(headRel, "_WON", "");
+							headRel = replaceSubstr(headRel, "_WL", "");
+							headRel = replaceSubstr(headRel, "_nonlinked", "");
+							headRel = CONCAT_STRINGS(headRel,gprom_itoa(pos));
 							DLAtom *newHead = (DLAtom *) copyObject(MAP_GET_STRING(PredecateToDomHybrid,headRel));
-							newHead->args = singleton(n);
+							newHead->args = singleton(node);
 							DL_SET_BOOL_PROP(newHead,DL_IS_DOMAIN_REL);
 
 							domHeads = appendToTailOfList(domHeads, newHead);
@@ -7648,6 +7599,10 @@ DLComparison* Hybrid_Transform(DLComparison* body){
 		args->opExpr->name = ">";
 	} else if (strieq(name, ">=")) {
 		args->opExpr->name = "<";
+	} else if (strieq(name,"!=")) {
+		args->opExpr->name = "=";
+	} else if (strieq(name,"=")) {
+		args->opExpr->name = "!=";
 	}
 	return args;
 }
