@@ -181,6 +181,7 @@ struct option_state {
 // dl rewrite options
 boolean opt_whynot_adv = FALSE;
 boolean opt_attr_dom = FALSE;
+boolean opt_tabular = FALSE;
 
 // functions
 #define wrapOptionInt(value) { .i = (int *) value }
@@ -780,6 +781,15 @@ OptionInfo opts[] =
 				"automated user domain.",
 				OPTION_BOOL,
 				wrapOptionBool(&opt_attr_dom),
+				defOptionBool(FALSE)
+		},
+        // tabular format options
+		{
+				OPTION_TABULAR,
+				"-tabular",
+				"provenance in table form.",
+				OPTION_BOOL,
+				wrapOptionBool(&opt_tabular),
 				defOptionBool(FALSE)
 		},
         anSanityCheckOption(CHECK_OM_DATA_STRUCTURE_CONSISTENCY,

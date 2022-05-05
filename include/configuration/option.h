@@ -103,6 +103,11 @@ NEW_ENUM_WITH_TO_STRING(
 #define TEMPORAL_USE_NORMALIZATION_WINDOW "temporal_use_normalization_window"
 #define TEMPORAL_AGG_WITH_NORM "temporal_combine_agg_and_norm"
 
+/* dl rewrite options */
+#define OPTION_WHYNOT_ADV "whynot_adv"
+#define OPTION_ATTR_DOM "attr_dom"
+#define OPTION_TABULAR "tabular"
+
 // backend types
 NEW_ENUM_WITH_TO_STRING(
     BackendType,
@@ -115,10 +120,6 @@ NEW_ENUM_WITH_TO_STRING(
 
 // encapsulates option state
 typedef struct option_state OptionState;
-
-/* dl rewrite options */
-#define OPTION_WHYNOT_ADV "whynot_adv"
-#define OPTION_ATTR_DOM "attr_dom"
 
 // declare option fields
 // show help only

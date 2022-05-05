@@ -5902,7 +5902,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
             datalogToOverviewString((Node *) helpRules),
 			datalogToOverviewString((Node *) negedbRules),
 			datalogToOverviewString((Node *) edbRules),
-            datalogToOverviewString((Node *) moveRules));
+			getBoolOption(OPTION_TABULAR) ? NULL : datalogToOverviewString((Node *) moveRules));
 
 
     /* ************************************************************ */
@@ -5942,7 +5942,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	            datalogToOverviewString((Node *) helpRules),
 				datalogToOverviewString((Node *) negedbRules),
 				datalogToOverviewString((Node *) edbRules),
-	            datalogToOverviewString((Node *) moveRules),
+				getBoolOption(OPTION_TABULAR) ? NULL : datalogToOverviewString((Node *) moveRules),
 				datalogToOverviewString((Node *) domainRules));
 
 
@@ -5959,8 +5959,22 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
      */
 	if (solvedProgram->sumOpts == NIL)
 	{
-		solvedProgram->ans = "move";
-		solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
+//		solvedProgram->ans = "move";
+//		solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
+
+		/*
+		 * send the solved program to translator_dl
+		 * Option: provenance in tabular format or graph format
+		 */
+		if(getBoolOption(OPTION_TABULAR)) {
+			// TODO: set the correct answer rule
+			DLRule *r = (DLRule *) getHeadOfListP(newRules);
+			solvedProgram->ans = r->head->rel;
+			solvedProgram->rules = CONCAT_LISTS(domainRules, edbRules, helpRules, unLinkedRules, newRules);
+		} else {
+			solvedProgram->ans = "move";
+			solvedProgram->rules = CONCAT_LISTS(domainRules, moveRules, edbRules, helpRules, unLinkedRules, newRules);
+		}
 
 		if(!ruleWon)
 		{
@@ -6100,6 +6114,19 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 								char *key = CONCAT_STRINGS(a->rel, gprom_itoa(pos));
 								MAP_ADD_STRING_KEY(relPosToDomHead,key,domRule->head);
 							}
+						}
+						else if (isA(n,Constant)) {
+							// create a domain rule for a constant
+							char *domRel = "DConst";
+							DLRule *domRule = makeNode(DLRule);
+							DLAtom *domHead = makeNode(DLAtom);
+
+							domHead->rel = domRel;
+							domHead->args = singleton(n);
+							domRule->head = copyObject(domHead);
+							domRule->body = singleton(copyObject(a));
+
+							domainRules = appendToTailOfList(domainRules, domRule);
 						}
 
 						pos++;
@@ -6255,6 +6282,14 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 					DLComparison* predicateNode = (DLComparison*) n;
 					predicateHybrid = hybrid_args(predicateHybrid,predicateNode->opExpr);
 					int pos = 1;
+
+					boolean hasDLVar = FALSE;
+					FOREACH(Node,node,predicateHybrid) {
+						if(isA(node,DLVar)) {
+							hasDLVar = TRUE;
+						}
+					}
+
 					FOREACH(Node,node,predicateHybrid) {
 						if (isA(node,DLVar)) {
 							// DLVar* v = (DLVar*) n;
@@ -6268,6 +6303,15 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 							DL_SET_BOOL_PROP(newHead,DL_IS_DOMAIN_REL);
 
 							domHeads = appendToTailOfList(domHeads, newHead);
+						}
+						else if (isA(node,Constant) && !hasDLVar) {
+							//TODO: check over multiple operators
+							char *opName = (char *) ((Constant *) node)->value;
+
+							if(!streq(opName,predicateNode->opExpr->name)) {
+								DLAtom *newHead = createDLAtom("DConst",singleton(node),FALSE);
+								domHeads = appendToTailOfList(domHeads, newHead);
+							}
 						}
 						pos++;
 					}
@@ -6308,59 +6352,70 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 
 		FOREACH(DLRule,r,domainRules)
 		{
-			DLAtom *bodyAt = (DLAtom *) getHeadOfListP(r->body);
+			boolean isPredDom = FALSE;
 
-			if((edbrel == NULL && i == 0) || (i > 0 && !streq(edbrel,bodyAt->rel)))
-			{
-				attributeNames = getAttributeNames(bodyAt->rel);
-				edbrel = bodyAt->rel;
-				i = 0;
+			// determine which rules are the domain for predicate rules
+			FOREACH(Node,n,r->head->args) {
+				if(isA(n,DLVar)) {
+					isPredDom = TRUE;
+				}
 			}
-			i++;
 
-			DLVar *v = (DLVar *) getHeadOfListP(r->head->args);
-			int varPos = 0;
+			if(isPredDom) {
+				DLAtom *bodyAt = (DLAtom *) getHeadOfListP(r->body);
 
-			FOREACH(Node,n,bodyAt->args)
-			{
-				if(isA(n,DLVar))
+				if((edbrel == NULL && i == 0) || (i > 0 && !streq(edbrel,bodyAt->rel)))
 				{
-					DLVar *bv = (DLVar *) n;
+					attributeNames = getAttributeNames(bodyAt->rel);
+					edbrel = bodyAt->rel;
+					i = 0;
+				}
+				i++;
 
-					// for each body args, add as a DLDOMAIN if arg is the same
-					if(streq(bv->name,v->name))
+				DLVar *v = (DLVar *) getHeadOfListP(r->head->args);
+				int varPos = 0;
+
+				FOREACH(Node,n,bodyAt->args)
+				{
+					if(isA(n,DLVar))
 					{
-						DLDomain *newDom = makeNode(DLDomain);
-						newDom->rel = bodyAt->rel;
-						newDom->attr = (char *) getNthOfListP(attributeNames,varPos);
-						newDom->name = r->head->rel;
+						DLVar *bv = (DLVar *) n;
 
-						solvedProgram->doms = appendToTailOfList(solvedProgram->doms,newDom);
-						doneDlDom = appendToTailOfList(doneDlDom,CONCAT_STRINGS(bodyAt->rel,v->name));
-					}
-					else
-					{
-						// for the variable that appears multiple time, same number of DLDOMAIN is needed
-						int numOfEachVar = 0;
-
-						if(MAP_HAS_STRING_KEY(varCount,bv->name))
-							numOfEachVar = INT_VALUE(MAP_GET_STRING(varCount,bv->name));
-
-						if(numOfEachVar > 0 && !searchListString(doneDlDom,CONCAT_STRINGS(bodyAt->rel,bv->name)))
+						// for each body args, add as a DLDOMAIN if arg is the same
+						if(streq(bv->name,v->name))
 						{
 							DLDomain *newDom = makeNode(DLDomain);
 							newDom->rel = bodyAt->rel;
 							newDom->attr = (char *) getNthOfListP(attributeNames,varPos);
-
-							DLRule *domRule = (DLRule *) MAP_GET_STRING(varToDom,bv->name);
-							newDom->name = domRule->head->rel;
+							newDom->name = r->head->rel;
 
 							solvedProgram->doms = appendToTailOfList(solvedProgram->doms,newDom);
-							doneDlDom = appendToTailOfList(doneDlDom,CONCAT_STRINGS(bodyAt->rel,bv->name));
+							doneDlDom = appendToTailOfList(doneDlDom,CONCAT_STRINGS(bodyAt->rel,v->name));
+						}
+						else
+						{
+							// for the variable that appears multiple times, same number of DLDOMAIN is needed
+							int numOfEachVar = 0;
+
+							if(MAP_HAS_STRING_KEY(varCount,bv->name))
+								numOfEachVar = INT_VALUE(MAP_GET_STRING(varCount,bv->name));
+
+							if(numOfEachVar > 0 && !searchListString(doneDlDom,CONCAT_STRINGS(bodyAt->rel,bv->name)))
+							{
+								DLDomain *newDom = makeNode(DLDomain);
+								newDom->rel = bodyAt->rel;
+								newDom->attr = (char *) getNthOfListP(attributeNames,varPos);
+
+								DLRule *domRule = (DLRule *) MAP_GET_STRING(varToDom,bv->name);
+								newDom->name = domRule->head->rel;
+
+								solvedProgram->doms = appendToTailOfList(solvedProgram->doms,newDom);
+								doneDlDom = appendToTailOfList(doneDlDom,CONCAT_STRINGS(bodyAt->rel,bv->name));
+							}
 						}
 					}
+					varPos++;
 				}
-				varPos++;
 			}
 		}
 
@@ -7559,6 +7614,8 @@ solveProgram (DLProgram *p, DLAtom *question, boolean neg)
 
     return p;
 }
+
+
 List *hybrid_args(List* args,Operator* op){
     Node *type = (Node *) op;
     if (isA(type,Operator)){
@@ -7588,6 +7645,8 @@ List *hybrid_args(List* args,Operator* op){
     }
     return args;
 }
+
+
 DLComparison* Hybrid_Transform(DLComparison* body){
 	DLComparison* args = copyObject(body);
 	char* name = body->opExpr->name;
