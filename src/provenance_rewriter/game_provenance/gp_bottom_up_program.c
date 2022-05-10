@@ -3565,20 +3565,27 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			//create new rule if function call exists
 			if(hasMapKey(solvedProgram->func,(Node *) r->head)){
 				DLAtom *newHead;
+				DLAtom *origHead = (DLAtom*) getMap(solvedProgram->func, (Node*) r->head);
 
 				//TODO: better way to create a unique head predicate, e.g., Q_new_WON_nonlinked(X,avg(C1))
 				char *newRel = CONCAT_STRINGS(r->head->rel, "_new");
-
-				//TODO: how to handle why-not
 				char *hName = CONCAT_STRINGS(newRel, "_", ruleWon ? "WON" : "LOST", NON_LINKED_POSTFIX);
-
+				List *newArgs = NIL;
+				FORBOTH(Node, origAtom, unAtom, origHead->args, r->head->args){
+					if(isA(origAtom, FunctionCall) && isA(unAtom, DLVar)){
+						newArgs = appendToTailOfList(newArgs, origAtom);
+					}
+					else{
+						newArgs = appendToTailOfList(newArgs, unAtom);
+					}
+				}
 				// Creating an additional rule for, e.g., Q(X,avg(C1))
-				newHead = createDLAtom(hName, r->head->args, r->head->negated);
-				setDLProp((DLNode *) newHead, DL_ORIG_ATOM, (Node *) copyObject(r->head));
-
+				newHead = createDLAtom(hName, newArgs, r->head->negated);
 				DLRule *newRule = createDLRule(newHead, copyObject(ruleRule->body));
 
 				// Add the new head to the body of ruleRule
+				newHead = createDLAtom(hName, r->head->args, r->head->negated);
+				setDLProp((DLNode *) newHead, DL_ORIG_ATOM, (Node *) copyObject(newRule->head));
 				ruleRule->body = appendToHeadOfList(ruleRule->body, newHead);
 
 				DLAtom *lookupAtom;
