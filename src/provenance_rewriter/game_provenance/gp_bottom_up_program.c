@@ -3412,6 +3412,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	Set *adornedEDBAtoms = NODESET();
 	Set *adornedEDBHelpAtoms = NODESET();
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
+    HashMap *origAtToUnifiedAt = NEW_MAP(Node,Node);
     char *fmt = STRING_VALUE(DL_GET_PROP((DLNode *) solvedProgram, DL_PROV_FORMAT));
     result->rules = copyObject(solvedProgram->rules);
     DLVar *createArgs;
@@ -3571,6 +3572,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 				char *newRel = CONCAT_STRINGS(r->head->rel, "_new");
 				char *hName = CONCAT_STRINGS(newRel, "_", ruleWon ? "WON" : "LOST", NON_LINKED_POSTFIX);
 				List *newArgs = NIL;
+
 				FORBOTH(Node, origAtom, unAtom, origHead->args, r->head->args){
 					if(isA(origAtom, FunctionCall) && isA(unAtom, DLVar)){
 						newArgs = appendToTailOfList(newArgs, origAtom);
@@ -3579,9 +3581,13 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						newArgs = appendToTailOfList(newArgs, unAtom);
 					}
 				}
+
 				// Creating an additional rule for, e.g., Q(X,avg(C1))
 				newHead = createDLAtom(hName, newArgs, r->head->negated);
 				DLRule *newRule = createDLRule(newHead, copyObject(ruleRule->body));
+
+				// store a map origHead to unified head for later when we create rules for connectivity
+				addToMap(origAtToUnifiedAt, (Node *) newHead, (Node *) r->head);
 
 				// Add the new head to the body of ruleRule
 				newHead = createDLAtom(hName, r->head->args, r->head->negated);
@@ -4595,6 +4601,27 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					// create goal for the rel that the rule has in its body and unify with link rule head
 					goalGoal = copyObject(gRule->head);
+
+					// TODO: retrieve the key from the func
+//					List * newArgsList = NIL;
+//					int pos = 0;
+
+					FOREACH(Node,n,goalGoal->args) {
+						if(isA(n,FunctionCall)) {
+							DLAtom *newHead = (DLAtom *) getMap(origAtToUnifiedAt, (Node *) goalGoal);
+							goalGoal->args = copyObject(newHead->args);
+
+//							char * varName = CONCAT_STRINGS("V", gprom_itoa(pos));
+//							DLVar *v = createDLVar(varName, DT_INT);
+//							newArgsList = appendToTailOfList(newArgsList, v);
+						}
+
+//						newArgsList = appendToTailOfList(newArgsList, n);
+//						pos++;
+					}
+//
+//					// Replace the head args with new args
+//					goalGoal->args = newArgsList;
 
 					// create goal for the rule that goal in its body and unify vars with link rule head
 					ruleGoal = copyObject(unRule->head);
