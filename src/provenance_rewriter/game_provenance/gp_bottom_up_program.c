@@ -4250,8 +4250,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 						
 					}
 					
-					boolean ruleWon = DL_HAS_PROP(r,DL_WON)
-											|| DL_HAS_PROP(r,DL_UNDER_NEG_WON);
+//					boolean ruleWon = DL_HAS_PROP(r,DL_WON)
+//											|| DL_HAS_PROP(r,DL_UNDER_NEG_WON);
 
 					char *adHeadName = CONCAT_STRINGS("R", a->rel, "_",
 											ruleWon ? "WON" : "WL",
@@ -4277,8 +4277,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //							negAtoms = appendToTailOfList(negAtoms, a);
 
 						a->negated = FALSE;
+						goalPos++;
 					}
-					goalPos++;
 
 					if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)) {
 						DLAtom *att = copyObject(a);
@@ -4329,8 +4329,8 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 //							negAtoms = appendToTailOfList(negAtoms, a);
 
 						a->negated = FALSE;
+						goalPos++;
 					}
-					goalPos++;
 					if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)) {
 						DLAtom *at;
 						at = copyObject(a);
@@ -5506,9 +5506,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					ruleGoal->rel = strRemPostfix(ruleGoal->rel, strlen(NON_LINKED_POSTFIX));
 
 					// only connected to "LOST" in dummyRule, e.g., r1_LOST(...) :- RQ2_LOST(...)
+					boolean ruleWon = DL_HAS_PROP(unRule,DL_WON)
+							|| DL_HAS_PROP(unRule,DL_UNDER_NEG_WON);
+
 					if (getBoolOption(OPTION_WHYNOT_ADV))
 					{
-						if (DL_HAS_PROP(gRule, DL_RULE_ID))
+						if (DL_HAS_PROP(gRule, DL_RULE_ID) && !ruleWon)
 						{
 							ruleGoal->args = replaceNode(ruleGoal->args,
 									getNthOfListP(ruleGoal->args, LIST_LENGTH(woBoolArgs) + boolPos), createConstBool(FALSE));
@@ -6044,6 +6047,8 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 	// auto generation of user domain
 	if (getBoolOption(OPTION_ATTR_DOM))
 	{
+		char *fmt = STRING_VALUE(DL_GET_PROP((DLNode *) solvedProgram, DL_PROV_FORMAT));
+
 		// store the pair of each variable in positive goals and positive relation names
 		HashMap *varToDom = NEW_MAP(Constant,Node);
 		HashMap *relPosToDomHead = NEW_MAP(Constant,Node);
@@ -6115,18 +6120,21 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 								MAP_ADD_STRING_KEY(relPosToDomHead,key,domRule->head);
 							}
 						}
-						else if (isA(n,Constant)) {
-							// create a domain rule for a constant
-							char *domRel = "DConst";
-							DLRule *domRule = makeNode(DLRule);
-							DLAtom *domHead = makeNode(DLAtom);
 
-							domHead->rel = domRel;
-							domHead->args = singleton(n);
-							domRule->head = copyObject(domHead);
-							domRule->body = singleton(copyObject(a));
+						if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)) {
+							if (isA(n,Constant)) {
+								// create a domain rule for a constant
+								char *domRel = "DConst";
+								DLRule *domRule = makeNode(DLRule);
+								DLAtom *domHead = makeNode(DLAtom);
 
-							domainRules = appendToTailOfList(domainRules, domRule);
+								domHead->rel = domRel;
+								domHead->args = singleton(n);
+								domRule->head = copyObject(domHead);
+								domRule->body = singleton(copyObject(a));
+
+								domainRules = appendToTailOfList(domainRules, domRule);
+							}
 						}
 
 						pos++;
