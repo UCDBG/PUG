@@ -5649,6 +5649,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	// filter out incorrect linked rules
 	List *removeRules = NIL;
 	List *nRuleBodyArgs = NIL;
+	DLAtom *origAt = NULL;
 	DEBUG_LOG("newRules before removing:\n%s", datalogToOverviewString((Node *) newRules));
 
 	FOREACH(DLRule,nRule,newRules)
@@ -5656,16 +5657,20 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 		boolean ruleWon = DL_HAS_PROP(nRule->head,DL_WON)
                                    || DL_HAS_PROP(nRule->head,DL_UNDER_NEG_WON);
 
-		if (!ruleWon && INT_VALUE(getDLProp((DLNode *) nRule,DL_RULE_ID)) != getMatched)
+		if (!ruleWon && INT_VALUE(getDLProp((DLNode *) nRule, DL_RULE_ID)) != getMatched)
 		{
 			int getFirstGoal = 0;
-			FOREACH(DLAtom,r,nRule->body)
+			FOREACH(DLAtom,a,nRule->body)
 			{
 				if (getFirstGoal == 0)
 				{
 					nRuleBodyArgs = NIL;
-					for (int i = 0; i < LIST_LENGTH(r->args); i++)
-						nRuleBodyArgs = appendToTailOfList(nRuleBodyArgs, getNthOfListP(r->args, i));
+					for (int i = 0; i < LIST_LENGTH(a->args); i++)
+						nRuleBodyArgs = appendToTailOfList(nRuleBodyArgs, getNthOfListP(a->args, i));
+
+					if (isSubstr(fmt, DL_PROV_FORMAT_HYBRID)) {
+						origAt = (DLAtom *) getDLProp((DLNode *) a, DL_ORIG_ATOM);
+					}
 				}
 				getFirstGoal++;
 			}
@@ -5673,9 +5678,37 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			// remove (FALSE,TRUE) from the connectivity
 			// TODO: whether loose information
 			if (searchListNode(nRuleBodyArgs, (Node *) createConstBool(FALSE))
-					|| searchListNode(nRuleBodyArgs, (Node *) createConstBool(TRUE)))
-				if (INT_VALUE(getDLProp((DLNode *) nRule,DL_RULE_ID)) != getMatched && BOOL_VALUE(getTailOfListP(nRuleBodyArgs)))
-					removeRules = appendToTailOfList(removeRules,nRule);
+					|| searchListNode(nRuleBodyArgs, (Node *) createConstBool(TRUE))) {
+
+				if (!isSubstr(fmt, DL_PROV_FORMAT_HYBRID)) {
+					if (INT_VALUE(getDLProp((DLNode *) nRule,DL_RULE_ID)) != getMatched &&
+							BOOL_VALUE(getTailOfListP(nRuleBodyArgs))) {
+						removeRules = appendToTailOfList(removeRules,nRule);
+					}
+				} else {
+					int numOfPred = 0;
+
+					// Check how many comparison predicate exists in the original rule
+					FOREACH(DLRule,r,solvedProgram->rules) {
+						if (searchListNode(singleton(origAt),(Node *) r->head)) {
+							FOREACH(Node,n,r->body) {
+								if(isA(n,DLComparison)) {
+									numOfPred++;
+								}
+							}
+						}
+					}
+
+					// Compute the index for boolean value
+					int posOfBool = LIST_LENGTH(nRuleBodyArgs) - numOfPred - 1;
+
+					if (INT_VALUE(getDLProp((DLNode *) nRule,DL_RULE_ID)) != getMatched &&
+							BOOL_VALUE(getNthOfListP(nRuleBodyArgs,posOfBool))) {
+						removeRules = appendToTailOfList(removeRules,nRule);
+					}
+				}
+
+			}
 		}
 	}
 	newRules = removeVars(newRules,removeRules);
