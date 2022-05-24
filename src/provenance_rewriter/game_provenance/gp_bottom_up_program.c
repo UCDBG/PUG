@@ -4651,14 +4651,14 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					DLAtom *head_lookup;
 					AD_NORM_COPY_HYBRID(head_lookup, atHead, hybrid_set, &varId);
 					atHead = copyObject(head_lookup);
-					FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
-						DLAtom *body;
-						AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
-						// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
-						// body->rel = body_name;
-						setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
-						atBody = appendToTailOfList(atBody,copyObject(body));
-					}
+					// FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
+					// 	DLAtom *body;
+					// 	AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
+					// 	// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+					// 	// body->rel = body_name;
+					// 	setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) hybrid_body);
+					// 	atBody = appendToTailOfList(atBody,copyObject(body));
+					// }
 
 					// DLAtom *hybrid_body = copyObject(hybrid_head);
 					// DLAtom *body_lookup;
@@ -4747,7 +4747,6 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					hybridRules = appendToTailOfList(hybridRules, negRule);
 					helpRules = appendToTailOfList(helpRules, negRule);
 				}
-				
 			}
 			DEBUG_LOG("new hybrid rule generated:\n%s", datalogToOverviewString((Node *) hybridRules));
 	   	}
