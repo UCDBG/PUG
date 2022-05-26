@@ -4115,8 +4115,9 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
     List *origProg = NIL;
 	// hybrid rules
 	List *hybridRules = NIL;
+	HashMap *adornedHybridBodyAtom = NEW_MAP(Node,Node);
 	Set *adornedHybridHeadAtom = NODESET();
-	Set *adornedHybridBodyAtom = NODESET();
+	// Set *adornedHybridBodyAtom = NODESET();
 	Set *MoveHybridAtom = NODESET();
 
 	Set *adornedEDBAtoms = NODESET();
@@ -4282,7 +4283,12 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)) {
 						DLAtom *att = copyObject(a);
-						addToSet(adornedHybridBodyAtom, att);
+						FOREACH(Node,argument,att->args) {
+							if (isA(argument,DLVar)) {
+								addToMap(adornedHybridBodyAtom,(Node *) argument, (Node*)att);
+							}
+						}
+						// addToSet(adornedHybridBodyAtom, att);
 					}
 				}
 				// Rewriting the comparison atoms for hybrid explanations
@@ -4651,6 +4657,17 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					DLAtom *head_lookup;
 					AD_NORM_COPY_HYBRID(head_lookup, atHead, hybrid_set, &varId);
 					atHead = copyObject(head_lookup);
+					FOREACH(Node,argument,hybrid_head->args) {
+						Node *arg = (Node *) getMap(adornedHybridBodyAtom, argument);
+						if (arg) {
+							DLAtom* body = (DLAtom*) arg;
+							AD_NORM_COPY_HYBRID(body, copyObject(arg), hybrid_set, &varId);
+							// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+							// body->rel = body_name;
+							setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) arg);
+							atBody = appendToTailOfList(atBody,copyObject(body));
+						}
+					}
 					// FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
 					// 	DLAtom *body;
 					// 	AD_NORM_COPY_HYBRID(body, copyObject(hybrid_body), hybrid_set, &varId);
@@ -6234,9 +6251,9 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 						pos++;
 					}
 				}
-				else if (isA(ba,DLComparison)) {
+				// else if (isA(ba,DLComparison)) {
 					
-				}
+				// }
 			}
 
 		}
@@ -6317,7 +6334,7 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 							pos++;
 						}
 					}
-				} else if (isA(n,DLComparison)) {
+				} else if (isA(n,DLComparison)&& isSubstr(eachRule->head->rel,"_WL_")) {
 					List* predicateHybrid = NIL;
 					DLComparison* predicateNode = (DLComparison*) n;
 					predicateHybrid = hybrid_args(predicateHybrid,predicateNode->opExpr);
