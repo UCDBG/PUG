@@ -59,7 +59,6 @@
 #define AD_NORM_COPY_HYBRID(result, a, hybrid_set, varId) \
 	do { \
         result = getNormalizedAtomHybrid(copyObject((DLNode *) a), hybrid_set,varId);   \
-        result->negated = FALSE; \
         DLNode *_p = (DLNode *) result; \
         _p->properties = NULL; \
         DL_COPY_PROP(a,_p,DL_WON); \
@@ -117,7 +116,7 @@ static Node *createSkolemExpr (GPNodeType type, char *id, List *args);
 static DLProgram *unifyProgram (DLProgram *p, DLAtom *question);
 static void unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom);
 static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
-
+static char * extractRuleID(char * in);
 
 //char *idbHeadPred = NULL;
 static List *programRules = NIL;
@@ -4283,10 +4282,42 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 
 					if (isSubstr(fmt,DL_PROV_FORMAT_HYBRID)) {
 						DLAtom *att = copyObject(a);
+						char* ruleName = replaceSubstr(adRuleName, "_WON","");
+						ruleName = replaceSubstr(ruleName,"_LOST","");
+						Set* duplicateConstant = NODESET();
 						FOREACH(Node,argument,att->args) {
+							// if (isA(argument,DLVar)) {
+							// 	addToMap(adornedHybridBodyAtom,(Node *) argument, (Node*)att);
+							// }
 							if (isA(argument,DLVar)) {
-								addToMap(adornedHybridBodyAtom,(Node *) argument, (Node*)att);
+								Node *arg = (Node *) getMap(adornedHybridBodyAtom, argument);
+								if (arg) {
+									List* temp = copyObject((List *) arg);
+									temp = appendToTailOfList(temp,(Node *) att);
+									addToMap(adornedHybridBodyAtom,argument,(Node *) temp);
+								} else {
+									List* temp = NIL;
+									temp = appendToTailOfList(temp,(Node *) att);
+									addToMap(adornedHybridBodyAtom,argument, (Node *) temp);
+								}
+							} else if (isA(argument, Constant)) {
+								Constant* varArgument = copyObject((Constant *) argument);
+								varArgument->value = CONCAT_STRINGS(ruleName,(char *)varArgument->value);
+								if (!hasSetElem(duplicateConstant,(Node *)varArgument)){
+									addToSet(duplicateConstant,(Node *)varArgument);
+									Node *arg = (Node *) getMap(adornedHybridBodyAtom, (Node *)varArgument);
+									if (arg) {
+										List* temp = copyObject((List *) arg);
+										temp = appendToTailOfList(temp,(Node *) att);
+										addToMap(adornedHybridBodyAtom,(Node *)varArgument,(Node *) temp);
+									} else {
+										List* temp = NIL;
+										temp = appendToTailOfList(temp,(Node *) att);
+										addToMap(adornedHybridBodyAtom,(Node *)varArgument, (Node *) temp);
+									}
+								}
 							}
+							
 						}
 						// addToSet(adornedHybridBodyAtom, att);
 					}
@@ -4304,7 +4335,10 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					char rel = atom_position + '0';
 					char p_rel[2]= {rel};
 					char *headPred = r->head->rel;
-					a->rel = CONCAT_STRINGS(headPred, "_comp",p_rel);
+					char *PredToRuleID = 
+					replaceSubstr(adRuleName,"_WON","");
+					PredToRuleID = replaceSubstr(PredToRuleID,"_LOST","");
+					a->rel = CONCAT_STRINGS(headPred, "_", PredToRuleID, "_comp",p_rel);
 					DL_SET_BOOL_PROP(a,DL_IS_IDB_REL);
 //					DL_SET_BOOL_PROP(a, DL_IS_IDB_REL); // make the translated DLComparison to DLAtom IDB
 					
@@ -4657,16 +4691,45 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 					DLAtom *head_lookup;
 					AD_NORM_COPY_HYBRID(head_lookup, atHead, hybrid_set, &varId);
 					atHead = copyObject(head_lookup);
+					Set* duplicateConstant = NODESET();
 					FOREACH(Node,argument,hybrid_head->args) {
-						Node *arg = (Node *) getMap(adornedHybridBodyAtom, argument);
-						if (arg) {
-							DLAtom* body = (DLAtom*) arg;
-							AD_NORM_COPY_HYBRID(body, copyObject(arg), hybrid_set, &varId);
-							// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
-							// body->rel = body_name;
-							setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) arg);
-							atBody = appendToTailOfList(atBody,copyObject(body));
+						// Node *arg = (Node *) getMap(adornedHybridBodyAtom, argument);
+						// if (arg) {
+						// 	DLAtom* body = (DLAtom*) arg;
+						// 	AD_NORM_COPY_HYBRID(body, copyObject(arg), hybrid_set, &varId);
+						// 	// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+						// 	// body->rel = body_name;
+						// 	setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) arg);
+						// 	atBody = appendToTailOfList(atBody,copyObject(body));
+						// }
+						if (isA(argument,DLVar)) {
+							List *arg = (List *) getMap(adornedHybridBodyAtom, argument);
+							FOREACH(Node*,Predicate_arg,arg) {
+								DLAtom* body = copyObject((DLAtom*) Predicate_arg);
+								AD_NORM_COPY_HYBRID(body, copyObject(Predicate_arg), hybrid_set, &varId);
+								// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+								// body->rel = body_name;
+								setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) Predicate_arg);
+								atBody = appendToTailOfList(atBody,copyObject(body));
+							}
+						} else if (isA(argument,Constant)) {
+							Constant* VarArgument = copyObject((Constant *) argument);
+							char* ruleID = extractRuleID(hybrid_head->rel);
+							VarArgument->value = CONCAT_STRINGS(ruleID,VarArgument->value);
+							if (!hasSetElem(duplicateConstant,(Node *)VarArgument)){
+								addToSet(duplicateConstant,(Node *)VarArgument);
+								List *arg = (List *) getMap(adornedHybridBodyAtom, (Node *)VarArgument);
+								FOREACH(Node*,Predicate_arg,arg) {
+									DLAtom* body = copyObject((DLAtom*) Predicate_arg);
+									AD_NORM_COPY_HYBRID(body, copyObject(Predicate_arg), hybrid_set, &varId);
+									// char *body_name = CONCAT_STRINGS("R", body->rel,"_", "WON", NON_LINKED_POSTFIX);
+									// body->rel = body_name;
+									setDLProp((DLNode *) body, DL_IS_EDB_REL, (Node *) Predicate_arg);
+									atBody = appendToTailOfList(atBody,copyObject(body));
+								}
+							}
 						}
+						
 					}
 					// FOREACH_SET(DLAtom, hybrid_body, adornedHybridBodyAtom){
 					// 	DLAtom *body;
@@ -6102,7 +6165,9 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 		HashMap *varToDom = NEW_MAP(Constant,Node);
 		HashMap *relPosToDomHead = NEW_MAP(Constant,Node);
 		HashMap *PredecateToDomHybrid = NEW_MAP(Constant,Node);
+		
 
+		int rulePos = 1;
 		FOREACH(DLRule,r,unifiedRule)
 		{
 			int goalPos = 1;
@@ -6198,7 +6263,7 @@ static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRul
 						{
 							DLVar *v = (DLVar *) n;
 							DLRule *domRule = (DLRule *) MAP_GET_STRING(varToDom,v->name);
-							char *key = CONCAT_STRINGS("RQ_comp",gprom_itoa(goalPos),gprom_itoa(pos));
+							char *key = CONCAT_STRINGS("RQ_", "r",gprom_itoa(rulePos),"_comp",gprom_itoa(goalPos),gprom_itoa(pos));
 							MAP_ADD_STRING_KEY(PredecateToDomHybrid,key,domRule->head);
 						}
 						pos++;
@@ -7721,4 +7786,24 @@ DLComparison* Hybrid_Transform(DLComparison* body){
 		args->opExpr->name = "!=";
 	}
 	return args;
+}
+static 
+char * extractRuleID(char * in) {
+	StringInfo result = makeStringInfo();
+
+    if (in == NULL)
+        return NULL;
+	
+	int count = 0;
+    while(*in != '\0')
+    {
+    	//TODO: check whether empty spaces are required to be removed
+//    	if (*in != '\t' && *in != ' ' && *in != '\n')
+		
+		if (*in != '_' && count == 1)
+            appendStringInfoChar(result, *in);
+        if (*in == '_') count++;
+        in++;
+    }
+    return result->data;
 }
