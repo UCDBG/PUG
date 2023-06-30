@@ -20,6 +20,7 @@
 #include "sql_serializer/sql_serializer_oracle.h"
 #include "sql_serializer/sql_serializer_dl.h"
 #include "sql_serializer/sql_serializer_lb.h"
+#include "sql_serializer/sql_serializer_radlog.h"
 #include "sql_serializer/sql_serializer_sqlite.h"
 #include "sql_serializer/sql_serializer_postgres.h"
 #include "model/node/nodetype.h"
@@ -37,6 +38,7 @@ static SqlserializerPlugin *assemblePostgresPlugin(void);
 static SqlserializerPlugin *assembleHivePlugin(void);
 static SqlserializerPlugin *assembleDLPlugin(void);
 static SqlserializerPlugin *assembleLBPlugin(void);
+static SqlserializerPlugin *assembleRDLPlugin(void);
 static SqlserializerPlugin *assembleSQLitePlugin(void);
 
 // wrapper interface
@@ -88,6 +90,9 @@ chooseSqlserializerPlugin(SqlserializerPluginType type)
             break;
         case SQLSERIALIZER_PLUGIN_LB:
             plugin = assembleLBPlugin();
+            break;
+	case SQLSERIALIZER_PLUGIN_RDL:
+            plugin = assembleRDLPlugin();
             break;
         case SQLSERIALIZER_PLUGIN_SQLITE:
             plugin = assembleSQLitePlugin();
@@ -158,6 +163,19 @@ assembleLBPlugin(void)
 }
 
 static SqlserializerPlugin *
+assembleRDLPlugin(void)
+{
+    SqlserializerPlugin *p = NEW(SqlserializerPlugin);
+
+    p->type = SQLSERIALIZER_PLUGIN_RDL;
+    p->serializeOperatorModel = serializeOperatorModelRDL;
+    p->serializeQuery = serializeQueryRDL;
+    p->quoteIdentifier = quoteIdentifierRDL;
+
+    return p;
+}
+
+static SqlserializerPlugin *
 assembleSQLitePlugin(void)
 {
     SqlserializerPlugin *p = NEW(SqlserializerPlugin);
@@ -185,6 +203,8 @@ chooseSqlserializerPluginFromString(char *type)
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_DL);
     else if (streq(type,"lb"))
             chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_LB);
+    else if (streq(type,"radlog"))
+            chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_RDL);
     else if (streq(type,"sqlite"))
         chooseSqlserializerPlugin(SQLSERIALIZER_PLUGIN_SQLITE);
     else
