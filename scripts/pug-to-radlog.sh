@@ -35,4 +35,4 @@ else
 fi
 
 
-${PUG} ${LOG} -sql "${PROGRAM}" ${CONNECTION_PARAMS} ${ORACLE} ${PUG_DL_PLUGINS} -Pparser dl -Panalyzer dl -Ptranslator dummy -Pexecutor dl -Psqlserializer dl -attr_dom -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE ${*:3}
+${PUG} ${LOG} -sql "${PROGRAM}" ${CONNECTION_PARAMS} ${ORACLE} ${PUG_DL_PLUGINS} -Pparser dl -Panalyzer dl -Ptranslator dummy -Pexecutor dl -Psqlserializer radlog -attr_dom -Cattr_reference_consistency FALSE -Cschema_consistency FALSE  -Cunique_attr_names FALSE ${*:3}
