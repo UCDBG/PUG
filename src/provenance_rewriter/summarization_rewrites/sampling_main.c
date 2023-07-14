@@ -29,13 +29,17 @@
 #include "model/query_operator/operator_property.h"
 #include "model/query_operator/query_operator_dt_inference.h"
 #include "model/query_operator/query_operator_model_checker.h"
-
 #include "provenance_rewriter/summarization_rewrites/sampling_main.h"
+
+#define RESULT_WO_ATTR "numOfdistOnoc"
+
+static Node *rewritePartition (Node *rewrittenTree);
 
 
 Node *
 rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 {
+	Node *rewrittenTreePart = NULL;
 	Node *result = NULL;
 	int sampleSize = 0;
 
@@ -71,11 +75,45 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 
 	if(qType == PROV_Q_WHY)
 		//TODO: implement the sampling algorithm
-		result = (Node *) rewrittenTree;
+
+		//Step1: partitioning
+		rewrittenTreePart = rewritePartition(rewrittenTree);
+		result = (Node *) rewrittenTreePart;
+
 		return result;
 
 	if(qType == PROV_Q_WHYNOT)
 		INFO_LOG("USE SUMMARIZATION:", result);
 		return result;
+}
+
+
+static Node *rewritePartition (Node *rewrittenTree)
+{
+	Node *rewrittenHead = (Node *) getHeadOfListP((List *) rewrittenTree);
+	QueryOperator *in = (QueryOperator *) rewrittenHead;
+
+	QueryOperator *child = (QueryOperator *) getHeadOfListP(in->inputs);
+
+	// Create the window function
+	WindowOperator *wo = NULL;
+	List *partitionBy = NIL;
+	partitionBy = ((ProjectionOperator *) child)->projExprs;
+
+	// add window functions for partitioning
+	AttributeReference *ar = (AttributeReference *) getNthOfListP(partitionBy,1);
+	Node *cntFunc = (Node *) createFunctionCall(strdup("COUNT"), singleton(ar));
+
+	wo = createWindowOp(cntFunc,
+			partitionBy,
+			NIL,
+			NULL,
+			strdup(RESULT_WO_ATTR),
+			child,
+			NIL
+	);
+
+	addParent(child, (QueryOperator *) wo);
+	return (Node *) wo;
 }
 
