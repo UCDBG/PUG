@@ -91,7 +91,10 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 static Node *rewritePartition (Node *rewrittenTree)
 {
 	Node *rewrittenHead = (Node *) getHeadOfListP((List *) rewrittenTree);
+	INFO_OP_LOG("input rewritten trees:", rewrittenTree);
+
 	QueryOperator *in = (QueryOperator *) rewrittenHead;
+	INFO_OP_LOG("head of input rewritten trees:", in);
 
 	QueryOperator *child = (QueryOperator *) getHeadOfListP(in->inputs);
 
@@ -114,6 +117,8 @@ static Node *rewritePartition (Node *rewrittenTree)
 	);
 
 	addParent(child, (QueryOperator *) wo);
+	INFO_OP_LOG("tree with added window function:", wo);
+
 	return (Node *) wo;
 }
 
