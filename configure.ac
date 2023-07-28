@@ -673,6 +673,7 @@ AC_CONFIG_FILES([
 	src/parser/Makefile
 	src/provenance_rewriter/Makefile
 	src/provenance_rewriter/game_provenance/Makefile
+        src/provenance_rewriter/ml_provenance/Makefile
 	src/provenance_rewriter/semiring_combiner/Makefile
 	src/provenance_rewriter/pi_cs_rewrites/Makefile
 	src/provenance_rewriter/transformation_rewrites/Makefile
