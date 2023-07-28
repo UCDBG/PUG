@@ -86,8 +86,6 @@ NEW_ENUM_WITH_TO_STRING(GPNodeType,
     || DL_HAS_PROP(prog,DL_PROV_WHYNOT) \
     || DL_HAS_PROP(prog,DL_PROV_FULL_GP))
 
-#define IS_ML_PROV(prog) (DL_HAS_PROP(prog,ML_PROV)) \
-
 #define IS_DL_NODE(n) (isA(n,DLNode) || isA(n,DLAtom) || isA(n,DLVar) \
         || isA(n,DLComparison) || isA(n,DLRule) || isA(n,DLProgram))
 
@@ -149,7 +147,6 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_PROV_WHY "WHY_PROV"
 #define DL_PROV_WHYNOT "WHYNOT_PROV"
 #define DL_PROV_FULL_GP "FULL_GP_PROV"
-#define ML_PROV "MLPROV"
 #define DL_PROV_PROG "GAME PROVENANCE PROGRAM"
 
 #define DL_PROV_FORMAT "PROV_FORMAT"

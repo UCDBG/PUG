@@ -17,7 +17,6 @@
 #include "provenance_rewriter/prov_rewriter.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
-#include "provenance_rewriter/ml_provenance/ml_main.h"
 #include "provenance_rewriter/semiring_combiner/sc_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_main.h"
 #include "provenance_rewriter/pi_cs_rewrites/pi_cs_composable.h"
@@ -53,21 +52,13 @@ provRewriteQBModel (Node *qbModel)
         return (Node *) provRewriteQuery((QueryOperator *) qbModel);
     else if (IS_DL_NODE(qbModel))
     {
-	if (IS_ML_PROV(qbModel)) {
-	    createRelToRuleMap(qbModel);
-	    INFO_LOG("PROV_REWRITER_MAIN.C IS ABOUT TO CALL / RETURN REWRITE FOR ML....");
-	    return (Node *) rewriteForML(qbModel);
-	}
-	else
-            createRelToRuleMap(qbModel);
-	    INFO_LOG("PROV_REWRITER_MAIN.C IS ABOUT TO CALL / RETURN REWRITE FOR GP....");
-            return (Node *) rewriteForGP(qbModel);
+        createRelToRuleMap(qbModel);
+        return (Node *) rewriteForGP(qbModel);
     }
     FATAL_LOG("cannot rewrite node <%s>", nodeToString(qbModel));
 
     return NULL;
 }
-
 
 List *
 provRewriteQueryList (List *list)

@@ -408,15 +408,9 @@ analyzeProv (DLProgram *p, KeyValue *kv)
     {
         DL_SET_BOOL_PROP(p,DL_PROV_FULL_GP);
     }
-    // Added ML_Prov
-    if (isPrefix(type,ML_PROV))
-    {
-        DL_SET_BOOL_PROP(p,ML_PROV);
-	INFO_LOG("DL_SET_BOOL_PROP: ML_PROV");
-    }
 
     // check if format is given
-    if (!streq(type,DL_PROV_WHY) && !streq(type,DL_PROV_WHYNOT) && !streq(type,DL_PROV_FULL_GP) && !streq(type,ML_PROV))
+    if (!streq(type,DL_PROV_WHY) && !streq(type,DL_PROV_WHYNOT) && !streq(type,DL_PROV_FULL_GP))
     {
         if (isSuffix(type, DL_PROV_FORMAT_GP))
         {
