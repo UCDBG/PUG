@@ -563,6 +563,7 @@ rewriteParserOutput (Node *parse, boolean applyOptimizations)
     if (getBoolOption(OPTION_COST_BASED_OPTIMIZER))
         rewrittenSQL = doCostBasedOptimization(oModel, applyOptimizations);
     else
+	INFO_LOG("getBoolOption(OPTION_COST_BASED_OPTIMIZER) returned false...rewriter.c is calling generatePlan");
     	rewrittenSQL = generatePlan(oModel, applyOptimizations);
 
     return rewrittenSQL;

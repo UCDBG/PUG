@@ -56,7 +56,7 @@ Node *dlParseResult = NULL;
  *        Currently keywords related to basic query are considered.
  *        Later on other keywords will be added.
  */
-%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV GP RPQ USERDOMAIN OF IS 
+%token <stringVal> NEGATION RULE_IMPLICATION ANS WHYPROV WHYNOTPROV MLPROV GP RPQ USERDOMAIN OF IS 
 %token <stringVal> SCORE AS THRESHOLDS TOP FOR FAILURE SUMMARIZED BY WITH SAMPLE
 
 /* tokens for constant and idents */
@@ -171,7 +171,14 @@ provStatement:
 			char *str = $2 ? CONCAT_STRINGS("FULL_GP_PROV-", $2) : "GP";
 			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), NULL);
 		}
+		| MLPROV optProvFormat '.'
+		{
+			RULELOG("provStatement::MLPROV");
+			char *str = $2 ? CONCAT_STRINGS("MLPROV-", $2) : "MLPROV";
+			$$ = (Node *) createNodeKeyValue((Node *) createConstString(str), NULL);
+		}
 	;
+
 
 /* optProv:
 		optProvFormat optProvSummarize

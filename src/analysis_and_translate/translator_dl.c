@@ -29,6 +29,7 @@
 #include "model/datalog/datalog_model_checker.h"
 #include "provenance_rewriter/prov_utility.h"
 #include "provenance_rewriter/game_provenance/gp_main.h"
+#include "provenance_rewriter/ml_provenance/ml_main.h"
 #include "provenance_rewriter/summarization_rewrites/summarize_main.h"
 #include "utility/string_utils.h"
 
@@ -214,9 +215,9 @@ translateProgram(DLProgram *p)
         // for creating the provenance and translate this one
         if (IS_GP_PROV(p))
         {
+            INFO_LOG("TRANSLATOR_DL.C IS ABOUT TO CALL REWRITE FOR GP....");
             DEBUG_LOG("user asked for provenance computation for:\n%s",
                             datalogToOverviewString((Node *) p));
-
     //        // check type of question (e.g., WHY or WHYNOT question)
     //        if(DL_HAS_PROP(p,DL_PROV_WHY))
     //        	typeOfQuestion = TRUE;
@@ -233,6 +234,30 @@ translateProgram(DLProgram *p)
             gpComp = translateParseDL(gpComp);
 
             return gpComp;
+        }
+	
+	// TODO Not reaching this?
+	if (IS_ML_PROV(p))
+        {
+            INFO_LOG("TRANSLATOR_DL.C IS ABOUT TO CALL REWRITE FOR ML....");
+            DEBUG_LOG("user asked for provenance computation for:\n%s",
+                            datalogToOverviewString((Node *) p));
+    //        // check type of question (e.g., WHY or WHYNOT question)
+    //        if(DL_HAS_PROP(p,DL_PROV_WHY))
+    //        	typeOfQuestion = TRUE;
+    //        else if(DL_HAS_PROP(p,DL_PROV_WHYNOT))
+    //        	typeOfQuestion = FALSE;
+
+    //        DEBUG_LOG("type of question: %d", typeOfQuestion);
+
+            Node *mlComp = rewriteForML((Node *) p);
+
+            ASSERT(!IS_ML_PROV(mlComp));
+
+            checkDLModel(mlComp);
+            mlComp = translateParseDL(mlComp);
+
+            return mlComp;
         }
 
         // determine pred -> rules
