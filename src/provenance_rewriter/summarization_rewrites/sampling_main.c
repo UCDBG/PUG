@@ -74,17 +74,21 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 			  ProvQuestionToString(qType), sampleSize);
 
 	if(qType == PROV_Q_WHY)
+	{
 		//TODO: implement the sampling algorithm
 
 		//Step1: partitioning
 		rewrittenTreePart = rewritePartition(rewrittenTree);
 		result = (Node *) rewrittenTreePart;
-
-		return result;
+	}
 
 	if(qType == PROV_Q_WHYNOT)
+	{
 		INFO_LOG("USE SUMMARIZATION:", result);
-		return result;
+		result = rewrittenTree;
+	}
+
+	return result;
 }
 
 
