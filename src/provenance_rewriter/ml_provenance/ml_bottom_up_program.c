@@ -1,9 +1,9 @@
 /*-----------------------------------------------------------------------------
  *
- * gp_bottom_up_program.c
+ * ml_bottom_up_program.c
  *			  
  *		
- *		AUTHOR: lord_pretzel & seokki
+ *		AUTHOR: justin && nkechi && seokki
  *
  *		
  *
@@ -21,7 +21,6 @@
 #include "model/set/set.h"
 #include "model/datalog/datalog_model.h"
 #include "provenance_rewriter/ml_provenance/ml_bottom_up_program.h"
-//#include "provenance_rewriter/game_provenance/gp_move_rules.h"
 #include "utility/string_utils.h"
 
 //#define ADD_ARGS "L"
@@ -58,7 +57,7 @@
 static DLProgram *createWhyGPprogram (DLProgram *p, DLAtom *why);
 static DLProgram *createWhyNotGPprogram (DLProgram *p, DLAtom *whyNot);
 static DLProgram *createFullGPprogram (DLProgram *p);
-static DLProgram *createInputDBprogram (DLProgram *p, DLAtom *question);
+//static DLProgram *createInputDBprogram (DLProgram *p, DLAtom *question);
 
 static void enumerateRules (DLProgram *p);
 static List *removeVars (List *vars, List *remVars);
@@ -69,20 +68,21 @@ static void associateDom(List *negedbRules, List *helpRules, DLProgram *solvedPr
 static void noAssociateDom (List *negedbRules, List *helpRules, List *unifiedRule, DLProgram *solvedProgram, List *edbRules);
 
 static DLProgram *rewriteSolvedProgram (DLProgram *solvedProgram);
-static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules);
-static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules);
-static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
-		List* unLinkedRules);
-static List*createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules);
-static List*createGPMoveRules(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules);
-static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules);
-static DLRule *createMoveRule(Node *lExpr, Node *rExpr, char *bodyAtomName, List *bodyArgs);
-static Node *createSkolemExpr (GPNodeType type, char *id, List *args);
+//
+//static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//        List* unLinkedRules);
+//static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//        List* unLinkedRules);
+//static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//		List* unLinkedRules);
+//static List*createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//        List* unLinkedRules);
+//static List*createGPMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//        List* unLinkedRules);
+//static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//        List* unLinkedRules);
+//static DLRule *createMoveRule(Node *lExpr, Node *rExpr, char *bodyAtomName, List *bodyArgs);
+//static Node *createSkolemExpr (GPNodeType type, char *id, List *args);
 
 static DLProgram *unifyProgram (DLProgram *p, DLAtom *question);
 static void unifyOneWithRuleHeads(HashMap *pToR, HashMap *rToUn, DLAtom *curAtom);
@@ -92,9 +92,7 @@ static DLProgram *solveProgram (DLProgram *p, DLAtom *question, boolean neg);
 static List *programRules = NIL;
 static List *domainRules = NIL;
 static List *origDLrules = NIL;
-//static HashMap *compAtom;
-//static HashMap *compRule;
-HashMap *edbRels;
+//HashMap *edbRels;
 
 
 DLProgram *
@@ -147,16 +145,16 @@ createBottomUpMLprogram (DLProgram *p)
     	DLProgram *program;
         DLAtom *why = (DLAtom *) getDLProp((DLNode *) p,DL_PROV_WHY);
 
-        if (getBoolOption(OPTION_INPUTDB))
-        	program = createInputDBprogram(p, why);
-        else
-        {
+//        if (getBoolOption(OPTION_INPUTDB))
+//        	program = createInputDBprogram(p, why);
+//        else
+//        {
             program = createWhyGPprogram(p, why);
 
             programRules = NIL;
             domainRules = NIL;
             p->ans = strdup(MOVE_RULE_PRED);
-        }
+//        }
 
         return program;
     }
@@ -166,16 +164,16 @@ createBottomUpMLprogram (DLProgram *p)
     	DLProgram *program;
         DLAtom *whyN = (DLAtom *) getDLProp((DLNode *) p,DL_PROV_WHYNOT);
 
-        if (getBoolOption(OPTION_INPUTDB))
-        	program = createInputDBprogram(p, whyN);
-        else
-        {
+//        if (getBoolOption(OPTION_INPUTDB))
+//        	program = createInputDBprogram(p, whyN);
+//        else
+//        {
             program = createWhyNotGPprogram(p, whyN);
 
             programRules = NIL;
             domainRules = NIL;
             p->ans = strdup(MOVE_RULE_PRED);
-        }
+//        }
 
         return program;
     }
@@ -289,158 +287,161 @@ createFullGPprogram (DLProgram *p)
     return p;
 }
 
-static DLProgram *
-createInputDBprogram (DLProgram *p, DLAtom *question)
-{
-	DLProgram *solvedProgram;
 
-
-	enumerateRules(p);
-    solvedProgram = copyObject(p);
-//    solvedProgram = unifyProgram(solvedProgram, question);
-
-    DL_DEL_PROP(solvedProgram,DL_PROV_WHY);
-    DL_DEL_PROP(solvedProgram,DL_PROV_WHYNOT);
-
-    p->sumOpts = NIL;
-
-    edbRels = NEW_MAP(Constant,Constant);
-    List *edbAtoms = NIL;
-    List *newRules = NIL;
-    int i = 1;
-
-    FOREACH(DLRule,r,solvedProgram->rules)
-    {
-    	FOREACH(DLAtom,a,r->body)
-		{
-			if (DL_HAS_PROP(a,DL_IS_EDB_REL))
-			{
-				if(!searchListString(edbAtoms,a->rel))
-				{
-					a->negated = FALSE;
-					edbAtoms = appendToTailOfList(edbAtoms, a->rel);
-					MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
-
-					DLRule *dlR = makeNode(DLRule);
-					dlR->head = copyObject(a);
-					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
-					dlR->body = copyObject(singleton(a));
-
-					newRules = appendToTailOfList(newRules,dlR);
-					i++;
-				}
-			}
-		}
-    }
 //
-//    // create new rules to return the relevant input data
-//    HashMap *joinInfo = NEW_MAP(Constant,List);
+//static DLProgram *
+//createInputDBprogram (DLProgram *p, DLAtom *question)
+//{
+//	DLProgram *solvedProgram;
+//
+//
+//	enumerateRules(p);
+//    solvedProgram = copyObject(p);
+////    solvedProgram = unifyProgram(solvedProgram, question);
+//
+//    DL_DEL_PROP(solvedProgram,DL_PROV_WHY);
+//    DL_DEL_PROP(solvedProgram,DL_PROV_WHYNOT);
+//
+//    p->sumOpts = NIL;
+//
 //    edbRels = NEW_MAP(Constant,Constant);
-//
-//    DLAtom *edbAtom = NULL;
+//    List *edbAtoms = NIL;
 //    List *newRules = NIL;
 //    int i = 1;
 //
 //    FOREACH(DLRule,r,solvedProgram->rules)
 //    {
-//    	boolean hasVar = FALSE;
-//
-//        if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-//        {
-//        	// create new rule from edb atom(s) if the rule contains ans atom
-//        	FOREACH(DLAtom,a,r->body)
+//    	FOREACH(DLAtom,a,r->body)
+//		{
+//			if (DL_HAS_PROP(a,DL_IS_EDB_REL))
 //			{
-//        		if (DL_HAS_PROP(a,DL_IS_EDB_REL))
-//        		{
-//        			a->negated = FALSE;
-//        			MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
-//
-//        			DLRule *dlR = makeNode(DLRule);
-//
-//        			// store edb atom to use later
-//        			if(i == 1 || streq(strdup(edbAtom->rel), strdup(a->rel)))
-//        			{
-//        				edbAtom = copyObject(a);
-//        				dlR->body = copyObject(singleton(a));
-//
-//        			}
-//        			else
-//        			{
-//        				FOREACH(Node,n,a->args)
-//							if(!isA(n,Constant))
-//								hasVar = TRUE;
-//
-//        				if(hasVar)
-//        					dlR->body = copyObject(LIST_MAKE(a, edbAtom));
-//        			}
-//
-//					dlR->head = copyObject(a);
-//					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
-//
-//					newRules = appendToTailOfList(newRules,dlR);
-//					i++;
-//        		}
-//			}
-//
-//        	// store the info which idb atoms need which edb atoms
-//        	FOREACH(DLAtom,a,r->body)
-//        		if (DL_HAS_PROP(a,DL_IS_IDB_REL))
-//        			MAP_ADD_STRING_KEY(joinInfo,a->rel,LIST_MAKE(edbAtom, (Node *) a->args));
-//        }
-//        else
-//        {
-//			FOREACH(DLAtom,a,r->body)
-//			{
-//				if (DL_HAS_PROP(a,DL_IS_EDB_REL))
+//				if(!searchListString(edbAtoms,a->rel))
 //				{
-//					FOREACH(Node,n,a->args)
-//						if(!isA(n,Constant))
-//							hasVar = TRUE;
-//
 //					a->negated = FALSE;
+//					edbAtoms = appendToTailOfList(edbAtoms, a->rel);
 //					MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
 //
 //					DLRule *dlR = makeNode(DLRule);
-//					dlR->head = copyObject(r->head);
-//
-//					// if edb atom to join exists then add it into the body
-//					if(hasVar && MAP_HAS_STRING_KEY(joinInfo,r->head->rel) &&
-//							!streq(strdup(edbAtom->rel), strdup(a->rel)))
-//					{
-//						List *values = (List *) MAP_GET_STRING(joinInfo, r->head->rel);
-//						dlR->body = copyObject(LIST_MAKE(a, (DLAtom *) getHeadOfListP(values)));
-//
-//						FORBOTH(Node,ln,rn,r->head->args,(List *) getTailOfListP(values))
-//						{
-//							DLComparison *dlC = makeNode(DLComparison);
-//							dlC->opExpr = createOpExpr("=",LIST_MAKE(ln,rn));
-//							dlR->body = appendToTailOfList(dlR->body,dlC);
-//						}
-//					}
-//					else
-//						dlR->body = copyObject(singleton(a));
-//
+//					dlR->head = copyObject(a);
 //					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
+//					dlR->body = copyObject(singleton(a));
+//
 //					newRules = appendToTailOfList(newRules,dlR);
 //					i++;
 //				}
-//
-//				if (DL_HAS_PROP(a,DL_IS_IDB_REL))
-//				{
-//					if(hasVar && MAP_HAS_STRING_KEY(joinInfo,r->head->rel))
-//					{
-//						List *values = (List *) MAP_GET_STRING(joinInfo, r->head->rel);
-//						char *key = a->rel;
-//						MAP_ADD_STRING_KEY(joinInfo, key, values);
-//					}
-//				}
 //			}
-//        }
+//		}
 //    }
+////
+////    // create new rules to return the relevant input data
+////    HashMap *joinInfo = NEW_MAP(Constant,List);
+////    edbRels = NEW_MAP(Constant,Constant);
+////
+////    DLAtom *edbAtom = NULL;
+////    List *newRules = NIL;
+////    int i = 1;
+////
+////    FOREACH(DLRule,r,solvedProgram->rules)
+////    {
+////    	boolean hasVar = FALSE;
+////
+////        if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+////        {
+////        	// create new rule from edb atom(s) if the rule contains ans atom
+////        	FOREACH(DLAtom,a,r->body)
+////			{
+////        		if (DL_HAS_PROP(a,DL_IS_EDB_REL))
+////        		{
+////        			a->negated = FALSE;
+////        			MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
+////
+////        			DLRule *dlR = makeNode(DLRule);
+////
+////        			// store edb atom to use later
+////        			if(i == 1 || streq(strdup(edbAtom->rel), strdup(a->rel)))
+////        			{
+////        				edbAtom = copyObject(a);
+////        				dlR->body = copyObject(singleton(a));
+////
+////        			}
+////        			else
+////        			{
+////        				FOREACH(Node,n,a->args)
+////							if(!isA(n,Constant))
+////								hasVar = TRUE;
+////
+////        				if(hasVar)
+////        					dlR->body = copyObject(LIST_MAKE(a, edbAtom));
+////        			}
+////
+////					dlR->head = copyObject(a);
+////					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
+////
+////					newRules = appendToTailOfList(newRules,dlR);
+////					i++;
+////        		}
+////			}
+////
+////        	// store the info which idb atoms need which edb atoms
+////        	FOREACH(DLAtom,a,r->body)
+////        		if (DL_HAS_PROP(a,DL_IS_IDB_REL))
+////        			MAP_ADD_STRING_KEY(joinInfo,a->rel,LIST_MAKE(edbAtom, (Node *) a->args));
+////        }
+////        else
+////        {
+////			FOREACH(DLAtom,a,r->body)
+////			{
+////				if (DL_HAS_PROP(a,DL_IS_EDB_REL))
+////				{
+////					FOREACH(Node,n,a->args)
+////						if(!isA(n,Constant))
+////							hasVar = TRUE;
+////
+////					a->negated = FALSE;
+////					MAP_ADD_STRING_KEY(edbRels,gprom_itoa(i),createConstString(a->rel));
+////
+////					DLRule *dlR = makeNode(DLRule);
+////					dlR->head = copyObject(r->head);
+////
+////					// if edb atom to join exists then add it into the body
+////					if(hasVar && MAP_HAS_STRING_KEY(joinInfo,r->head->rel) &&
+////							!streq(strdup(edbAtom->rel), strdup(a->rel)))
+////					{
+////						List *values = (List *) MAP_GET_STRING(joinInfo, r->head->rel);
+////						dlR->body = copyObject(LIST_MAKE(a, (DLAtom *) getHeadOfListP(values)));
+////
+////						FORBOTH(Node,ln,rn,r->head->args,(List *) getTailOfListP(values))
+////						{
+////							DLComparison *dlC = makeNode(DLComparison);
+////							dlC->opExpr = createOpExpr("=",LIST_MAKE(ln,rn));
+////							dlR->body = appendToTailOfList(dlR->body,dlC);
+////						}
+////					}
+////					else
+////						dlR->body = copyObject(singleton(a));
+////
+////					dlR->head->rel = CONCAT_STRINGS(strdup("inputdb"),gprom_itoa(i));
+////					newRules = appendToTailOfList(newRules,dlR);
+////					i++;
+////				}
+////
+////				if (DL_HAS_PROP(a,DL_IS_IDB_REL))
+////				{
+////					if(hasVar && MAP_HAS_STRING_KEY(joinInfo,r->head->rel))
+////					{
+////						List *values = (List *) MAP_GET_STRING(joinInfo, r->head->rel);
+////						char *key = a->rel;
+////						MAP_ADD_STRING_KEY(joinInfo, key, values);
+////					}
+////				}
+////			}
+////        }
+////    }
+//
+//    solvedProgram->rules = newRules;
+//	return solvedProgram;
+//}
 
-    solvedProgram->rules = newRules;
-	return solvedProgram;
-}
 
 //static List*createTupleRuleTupleReducedGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
 //        List* unLinkedRules)
@@ -670,1719 +671,176 @@ createInputDBprogram (DLProgram *p, DLAtom *question)
 //    return moveRules;
 //}
 
-
-static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, List* edbRules, List* unLinkedRules)
-{
-	List *moveRules = NIL;
-
-	if (getBoolOption(OPTION_WHYNOT_ADV))
-	{
-		FOREACH(DLRule,r,unLinkedRules)
-		{
-			boolean ruleWon = DL_HAS_PROP(r->head,
-					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-			List *ruleArgs = NIL;
-			FOREACH(Node,n,r->head->args)
-			{
-				if(isA(n, Constant))
-					ruleArgs = appendToTailOfList(ruleArgs, n);
-				else
-				{
-					if(isA(n, DLVar))
-					{
-						DLVar *v = (DLVar *) n;
-
-						if(v->dt != DT_BOOL)
-							ruleArgs = appendToTailOfList(ruleArgs, v);
-					}
-				}
-			}
-
-			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-					ruleWon ? "_WON" : "_LOST");
-			char *ruleRel = CONCAT_STRINGS(
-					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-					ruleWon ? "_WON" : "_LOST");
-//			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-			int j = 1;
-			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-					strlen(NON_LINKED_POSTFIX));
-
-			List *boolArgs = removeVars(r->head->args,ruleArgs);
-			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
-
-			// head -> rule_i
-			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
-			Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
-			DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
-			moveRules = appendToTailOfList(moveRules, moveRule);
-
-			// filter out neg head atom for answer relation before creating move rules
-			int atPos = 0;
-			List *newRuleBody = NIL;
-
-			if (!ruleWon)
-			{
-				FOREACH(DLAtom,a,r->body)
-				{
-					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-					{
-						if (atPos < LIST_LENGTH(r->body) - 1)
-							newRuleBody = appendToTailOfList(newRuleBody,a);
-					}
-					else
-						newRuleBody = appendToTailOfList(newRuleBody,a);
-
-					atPos++;
-				}
-			}
-			else
-				newRuleBody = copyObject(r->body);
-
-			// rule_i -> goal_i_j -> posR/negR -> posR
-			FOREACH(DLAtom,a,newRuleBody)
-			{
-				// filter out boolean args before creating move rules
-				List *woBoolArgs = NIL;
-				List *argsForMoves = NIL;
-				List *boolArgs = NIL;
-
-				Node *atom = (Node *) a;
-
-				if(isA(atom,DLAtom))
-				{
-					FOREACH(Node,n,a->args)
-					{
-						if(isA(n, Constant))
-							woBoolArgs = appendToTailOfList(woBoolArgs,n);
-						else
-						{
-							DLVar *v = NULL;
-
-							if(isA(n, DLVar))
-								v = (DLVar *) n;
-
-							if(isA(n,Operator))
-							{
-								Operator *o = (Operator *) n;
-								v = (DLVar *) getHeadOfListP(o->args);
-							}
-
-							if(v != NULL)
-							{
-								if (v->dt != DT_BOOL)
-									woBoolArgs = appendToTailOfList(woBoolArgs,v);
-								else
-									boolArgs = appendToTailOfList(boolArgs,v);
-							}
-						}
-					}
-//				}
 //
-//				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
-//				{
-					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
-
-//					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-//							ruleWon ? "_WON" : "_LOST");
-					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_WON" : "_LOST");
-					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_LOST" : "_WON");
-
-					argsForMoves = copyObject(r->head->args);
-
-					if (!ruleWon && !LIST_EMPTY(boolArgs))
-					{
-						argsForMoves = replaceNode(argsForMoves,
-												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-												   createConstBool(FALSE));
-					}
-
-					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
-					{
-						// rule -> tuple
-						Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
-						rExpr = createSkolemExpr(GP_NODE_TUPLE, a->negated ? negAtomRel : atomRel, copyObject(woBoolArgs));
-
-						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-						moveRules = appendToTailOfList(moveRules, moveRule);
-					}
-				}
-
-				DEBUG_LOG("created new move rule for head -> rule");
-				j++;
-			}
-		}
-	}
-	else
-	{
-		int checkPos = 0;
-		char *bName = NULL;
-		List *newBoolArgs = NIL;
-		List *collectRuleId = NIL;
-		DLVar* createBoolArgs;
-		int ruleIdPos = 0;
-
-		FOREACH(DLRule,r,unLinkedRules)
-		{
-			boolean ruleWon = DL_HAS_PROP(r->head,
-					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-			// Collecting all the original variables for later use
-			int argPos = -1;
-			List *ruleArgs = NIL;
-			int rNumGoals = LIST_LENGTH(r->body);
-
-			FOREACH(DLAtom,a,r->body)
-			{
-				Node *atom = (Node *) a;
-
-				if(isA(atom,DLAtom))
-				{
-					argPos++;
-
-		            if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
-		            		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
-					{
-						FOREACH(DLNode,arg,a->args)
-						{
-							if (!searchListNode(ruleArgs, (Node *) arg))
-								ruleArgs = appendToTailOfList(ruleArgs,
-										copyObject(arg));
-						}
-					}
-				}
-			}
-			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-					ruleWon ? "_WON" : "_LOST");
-			char *ruleRel = CONCAT_STRINGS(
-					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-					ruleWon ? "_WON" : "_LOST");
-	//		i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-			int j = 0;
-			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-					strlen(NON_LINKED_POSTFIX));
-
-			// remove over generated move rules
-			boolean goalChk = FALSE;
-			List *newRuleHeadArgs = NIL;
-			List *boolArgs = removeVars(r->head->args, ruleArgs);
-
-			// create a list for collecting rule id
-			int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-			char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
-					STRING_VALUE(createConstBool(ruleWon)));
-			int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
-			collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
-
-			// reset the position to check if the rule id is changed
-			if (LIST_LENGTH(collectRuleId) > 1)
-				if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
-						!= getNthOfListInt(collectRuleId, ruleIdPos))
-					checkPos = 0;
-
-			// head -> rule_i
-			if (!ruleWon)
-			{
-				// generate boolean args with variables to reduce redundant move rules
-				newBoolArgs = NIL;
-				for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
-						checkLoop++)
-				{
-					bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
-					createBoolArgs = createDLVar(bName, DT_BOOL);
-					newBoolArgs = appendToTailOfList(newBoolArgs,
-							copyObject(createBoolArgs));
-				}
-
-				if (checkPos < LIST_LENGTH(boolArgs))
-					goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
-
-				if (!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-				{
-					// update the boolean arguments
-					List *replaceBoolArgs = copyObject(newBoolArgs);
-					replaceBoolArgs = replaceNode(replaceBoolArgs,
-							getNthOfListP(replaceBoolArgs, checkPos),
-							getNthOfListP(boolArgs, checkPos));
-
-					newRuleHeadArgs = removeVars(r->head->args,
-							removeVars(r->head->args, ruleArgs));
-					for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
-						newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
-								getNthOfListP(replaceBoolArgs, k));
-
-					Node *lExpr;
-					Node *rExpr;
-					DLRule *moveRule;
-					lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-							copyObject(origAtom->args));
-					rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
-							copyObject(
-									removeVars(r->head->args,
-											removeVars(r->head->args, ruleArgs))));
-					moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-							copyObject(newRuleHeadArgs));
-					moveRules = appendToTailOfList(moveRules, moveRule);
-				}
-			}
-			else
-			{
-				Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-						copyObject(origAtom->args));
-				Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
-						copyObject(r->head->args));
-				DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-						r->head->args);
-				moveRules = appendToTailOfList(moveRules, moveRule);
-			}
-
-			// rule_i -> goal_i_j -> posR/negR -> posR
-			int goalPos = -1;
-
-			if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-					|| ruleWon)
-			{
-				FOREACH(DLAtom,a,r->body)
-				{
-					Node *atom = (Node *) a;
-
-					if(isA(atom,DLAtom))
-					{
-						goalPos++;
-						//              int unruleNumGoals = LIST_LENGTH(r->body);
-		//				int numHeadArgs = LIST_LENGTH(r->head->args);
-						boolean goalWon = FALSE;
-						boolean relWon = FALSE;
-
-						// Not include the additional atom for filtering out
-						if (!ruleWon && (goalPos + 1) == rNumGoals
-								&& INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
-						{
-							goalWon = TRUE;
-						}
-						else
-						{
-							if ((!ruleWon && checkPos == j) || ruleWon)
-							{
-								ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-								DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
-										DL_ORIG_ATOM);
-
-		//						char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-		//								ruleWon ? "_WON" : "_LOST");
-
-								// is goal won?
-								if (!ruleWon)
-								{
-		                            DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
-		                            goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
-
-		//							if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
-		//									== getMatched)
-		//							{
-		//								if (goalPos != rNumGoals - 1)
-		//									goalWon = BOOL_VALUE(
-		//											getNthOfListP(r->head->args,
-		//													numHeadArgs - (rNumGoals - 1) + goalPos));
-		//							}
-		//							else
-		//								goalWon = BOOL_VALUE(
-		//										getNthOfListP(r->head->args,
-		//												numHeadArgs - rNumGoals + goalPos));
-								}
-								else
-									goalWon = TRUE;
-
-								DEBUG_LOG("goal is %s and goal is negated %s", goalWon ? "TRUE" : "FALSE", a->negated ? "TRUE" : "FALSE");
-
-								// is tuple won?
-								if ((goalWon && (!a->negated)) || ((!goalWon) && a->negated))
-								{
-									relWon = TRUE;
-								}
-								else
-								{
-									relWon = FALSE;
-								}
-
-								char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-										relWon ? "_WON" : "_LOST");
-
-								// -> posR
-								if (a->negated)
-								{
-									if (!goalWon || ruleWon)
-									{
-										Node *lExpr = createSkolemExpr(GP_NODE_RULE,
-												ruleRel,
-												copyObject(
-														removeVars(r->head->args,
-																removeVars(
-																		r->head->args,
-																		ruleArgs))));
-										Node *rExpr = createSkolemExpr(GP_NODE_TUPLE,
-												atomRel, copyObject(a->args));
-										DLRule *moveRule;
-										if (ruleWon)
-											moveRule = createMoveRule(lExpr, rExpr,
-													linkedHeadName, r->head->args);
-										else
-											moveRule = createMoveRule(lExpr, rExpr,
-													linkedHeadName,
-													copyObject(newRuleHeadArgs));
-
-										moveRules = appendToTailOfList(moveRules,
-												moveRule);
-									}
-								}
-								// -> posR
-								else
-								{
-									if (!goalWon || ruleWon)
-									{
-										Node *lExpr;
-										if (!ruleWon)
-											lExpr =
-													createSkolemExpr(GP_NODE_RULE,
-															ruleRel,
-															copyObject(
-																	removeVars(
-																			r->head->args,
-																			removeVars(
-																					r->head->args,
-																					ruleArgs))));
-										else
-											lExpr = createSkolemExpr(GP_NODE_RULE,
-													ruleRel, copyObject(r->head->args));
-
-										char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
-														ruleWon ? "_WON" : "_LOST");
-										Node *rExpr = createSkolemExpr(GP_NODE_TUPLE,
-												Rel, copyObject(a->args));
-
-										DLRule *moveRule;
-										if (ruleWon)
-											moveRule = createMoveRule(lExpr, rExpr,
-													linkedHeadName, r->head->args);
-										else
-											moveRule = createMoveRule(lExpr, rExpr,
-													linkedHeadName,
-													copyObject(newRuleHeadArgs));
-
-										moveRules = appendToTailOfList(moveRules,
-												moveRule);
-									}
-								}
-							}
-						}
-						DEBUG_LOG("created new move rule for head -> rule");
-						j++;
-					}
-				}
-				checkPos++;
-			}
-			ruleIdPos++;
-		}
-	}
-
-	return moveRules;
-}
-
-static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules)
-{
-    List *moveRules = NIL;
-
-	if (getBoolOption(OPTION_WHYNOT_ADV))
-	{
-		FOREACH(DLRule,r,unLinkedRules)
-		{
-			boolean ruleWon = DL_HAS_PROP(r->head,
-					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-			List *ruleArgs = NIL;
-			FOREACH(Node,n,r->head->args)
-			{
-				if(isA(n, Constant))
-					ruleArgs = appendToTailOfList(ruleArgs, n);
-				else
-				{
-					if(isA(n, DLVar))
-					{
-						DLVar *v = (DLVar *) n;
-
-						if(v->dt != DT_BOOL)
-							ruleArgs = appendToTailOfList(ruleArgs, v);
-					}
-				}
-			}
-
-			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-					ruleWon ? "_WON" : "_LOST");
-			char *ruleRel = CONCAT_STRINGS(
-					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-					ruleWon ? "_WON" : "_LOST");
-			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-			int j = 1;
-			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-					strlen(NON_LINKED_POSTFIX));
-
-			List *boolArgs = removeVars(r->head->args,ruleArgs);
-			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
-
-			// head -> rule_i
-			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
-			Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
-			DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
-			moveRules = appendToTailOfList(moveRules, moveRule);
-
-			// filter out neg head atom for answer relation before creating move rules
-			int atPos = 0;
-			List *newRuleBody = NIL;
-
-			if (!ruleWon)
-			{
-				FOREACH(DLAtom,a,r->body)
-				{
-					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-					{
-						if (atPos < LIST_LENGTH(r->body) - 1)
-							newRuleBody = appendToTailOfList(newRuleBody,a);
-					}
-					else
-						newRuleBody = appendToTailOfList(newRuleBody,a);
-
-					atPos++;
-				}
-			}
-			else
-				newRuleBody = copyObject(r->body);
-
-			// rule_i -> goal_i_j -> posR/negR -> posR
-			FOREACH(DLAtom,a,newRuleBody)
-			{
-				// filter out boolean args before creating move rules
-				List *woBoolArgs = NIL;
-				List *argsForMoves = NIL;
-				List *boolArgs = NIL;
-				boolean isNegVar = FALSE;
-
-				Node *atom = (Node *) a;
-
-				if(isA(atom,DLAtom))
-				{
-					FOREACH(Node,n,a->args)
-					{
-						if(isA(n, Constant))
-							woBoolArgs = appendToTailOfList(woBoolArgs,n);
-						else
-						{
-							DLVar *v = NULL;
-
-							if(isA(n, DLVar))
-								v = (DLVar *) n;
-
-							if(isA(n,Operator))
-							{
-								Operator *o = (Operator *) n;
-								v = (DLVar *) getHeadOfListP(o->args);
-							}
-
-							if(v != NULL)
-							{
-								if (v->dt != DT_BOOL)
-									woBoolArgs = appendToTailOfList(woBoolArgs,v);
-								else
-									boolArgs = appendToTailOfList(boolArgs,v);
-							}
-						}
-					}
-
-					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
-
-					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-							ruleWon ? "_WON" : "_LOST");
-					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_WON" : "_LOST");
-					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_LOST" : "_WON");
-
-					argsForMoves = copyObject(r->head->args);
-
-					if (ruleWon && a->negated)
-						isNegVar = TRUE;
-
-					if (!ruleWon && !LIST_EMPTY(boolArgs))
-					{
-
-						// check if it is a negated atom
-						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
-
-						if(isA(negVar,Operator))
-						{
-							Operator *o = (Operator *) negVar;
-
-							if(streq(o->name,"not"))
-								isNegVar = TRUE;
-						}
-
-						// set the corresponding Boolean variable to FALSE
-						argsForMoves = replaceNode(argsForMoves,
-												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-												   createConstBool(FALSE));
-					}
-
-					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
-					{
-						// rule -> goal
-						Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
-						Node *rExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel, copyObject(woBoolArgs));
-
-						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-						moveRules = appendToTailOfList(moveRules, moveRule);
-
-						// goal -> tuple
-						lExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel, copyObject(woBoolArgs));
-						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
-
-						moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-						moveRules = appendToTailOfList(moveRules, moveRule);
-					}
-				}
-
-				DEBUG_LOG("created new move rule for head -> rule");
-				j++;
-			}
-		}
-	}
-	else
-	{
-	    int checkPos = 0;
-	    char *bName = NULL;
-	    List *newBoolArgs = NIL;
-	    List *collectRuleId = NIL;
-	    DLVar* createBoolArgs;
-	    int ruleIdPos = 0;
-
-	    FOREACH(DLRule,r,unLinkedRules)
-	    {
-	        boolean ruleWon = DL_HAS_PROP(r->head,
-	                DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-	        ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-	        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-	        // Collecting all the original variables for later use
-	        int argPos = -1;
-	        List *ruleArgs = NIL;
-	        int rNumGoals = LIST_LENGTH(r->body);
-
-	        FOREACH(DLAtom,a,r->body)
-	        {
-	        	Node *atom = (Node *) a;
-
-				if(isA(atom,DLAtom))
-				{
-		            argPos++;
-
-	                if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
-	                		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
-		            {
-		                FOREACH(DLNode,arg,a->args)
-		                {
-		                    if (!searchListNode(ruleArgs, (Node *) arg))
-		                        ruleArgs = appendToTailOfList(ruleArgs,
-		                                copyObject(arg));
-						}
-		            }
-				}
-	        }
-	        DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-	        char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-	                ruleWon ? "_WON" : "_LOST");
-	        char *ruleRel = CONCAT_STRINGS(
-	                CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-	                ruleWon ? "_WON" : "_LOST");
-	        int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-	        int j = 0;
-	        char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-	                strlen(NON_LINKED_POSTFIX));
-
-	        // remove over generated move rules
-	        boolean goalChk = FALSE;
-	        List *newRuleHeadArgs = NIL;
-	        List *boolArgs = removeVars(r->head->args, ruleArgs);
-
-	        // create a list for collecting rule id
-	        int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-	        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
-	                STRING_VALUE(createConstBool(ruleWon)));
-	        int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
-	        collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
-
-	        // reset the position to check if the rule id is changed
-	        if (LIST_LENGTH(collectRuleId) > 1)
-	            if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
-	                    != getNthOfListInt(collectRuleId, ruleIdPos))
-	                checkPos = 0;
-
-	        // head -> rule_i
-	        if (!ruleWon)
-	        {
-	            // generate boolean args with variables to reduce redundant move rules
-	            newBoolArgs = NIL;
-	            for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
-	                    checkLoop++)
-	            {
-	                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
-	                createBoolArgs = createDLVar(bName, DT_BOOL);
-	                newBoolArgs = appendToTailOfList(newBoolArgs,
-	                        copyObject(createBoolArgs));
-	            }
-
-	            if (checkPos < LIST_LENGTH(boolArgs))
-	                goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
-
-	            if (!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-	            {
-	                // update the boolean arguments
-	                List *replaceBoolArgs = copyObject(newBoolArgs);
-	                replaceBoolArgs = replaceNode(replaceBoolArgs,
-	                        getNthOfListP(replaceBoolArgs, checkPos),
-	                        getNthOfListP(boolArgs, checkPos));
-
-	                newRuleHeadArgs = removeVars(r->head->args,
-	                        removeVars(r->head->args, ruleArgs));
-	                for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
-	                    newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
-	                            getNthOfListP(replaceBoolArgs, k));
-
-					Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-							copyObject(origAtom->args));
-					Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
-							copyObject(
-									removeVars(r->head->args,
-											removeVars(r->head->args, ruleArgs))));
-					DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-							copyObject(newRuleHeadArgs));
-					moveRules = appendToTailOfList(moveRules, moveRule);
-	            }
-	        }
-	        else
-	        {
-	            Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-	                    copyObject(origAtom->args));
-	            Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
-	                    copyObject(r->head->args));
-	            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-	                    r->head->args);
-	            moveRules = appendToTailOfList(moveRules, moveRule);
-	        }
-
-	        // rule_i -> goal_i_j -> posR/negR -> posR
-	        int goalPos = -1;
-
-	        if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-	                || ruleWon)
-	        {
-	            FOREACH(DLAtom,a,r->body)
-	            {
-	            	Node *atom = (Node *) a;
-
-					if(isA(atom,DLAtom))
-					{
-		                goalPos++;
-		//              int unruleNumGoals = LIST_LENGTH(r->body);
-		//                int numHeadArgs = LIST_LENGTH(r->head->args);
-		                boolean goalWon = FALSE;
-		                boolean relWon = FALSE;
-
-		                // Not include the additional atom for filtering out
-		                if (!ruleWon && (goalPos + 1) == rNumGoals
-		                        && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
-		                {
-		                    goalWon = TRUE;
-		                }
-		                else
-		                {
-		                    if ((!ruleWon && checkPos == j) || ruleWon)
-		                    {
-		                        ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-		                        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
-		                                DL_ORIG_ATOM);
-
-		                        char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-		                                ruleWon ? "_WON" : "_LOST");
-
-		                        // is goal won?
-		                        if (!ruleWon)
-		                        {
-		                            DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
-		                            goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
-
-		//                            if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
-		//                                    == getMatched)
-		//                            {
-		//                                if (goalPos != rNumGoals - 1)
-		//                                    goalWon = BOOL_VALUE(
-		//                                            getNthOfListP(r->head->args,
-		//                                                    numHeadArgs - (rNumGoals - 1) + goalPos));
-		//                            }
-		//                            else
-		//                                goalWon = BOOL_VALUE(
-		//                                        getNthOfListP(r->head->args,
-		//                                                numHeadArgs - rNumGoals + goalPos));
-		                        }
-		                        else
-		                            goalWon = TRUE;
-
-		                        DEBUG_LOG("goal is %s and goal is negated %s", goalWon ? "TRUE" : "FALSE", a->negated ? "TRUE" : "FALSE");
-
-		                        // is tuple won?
-		                        if ((goalWon && (!a->negated)) || ((!goalWon) && a->negated))
-		                        {
-		                            relWon = TRUE;
-		                        }
-		                        else
-		                        {
-		                            relWon = FALSE;
-		                        }
-
-		                        char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-		                                relWon ? "_WON" : "_LOST");
-
-		                        // -> posR
-		                        if (a->negated)
-		                        {
-		                            if (!goalWon || ruleWon)
-		                            {
-		                                Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER,
-		                                        ruleRel,
-		                                        copyObject(
-		                                                removeVars(r->head->args,
-		                                                        removeVars(
-		                                                                r->head->args,
-		                                                                ruleArgs))));
-		                                Node *rExpr = createSkolemExpr(GP_NODE_GOALHYPER,
-		                                        goalRel, copyObject(a->args));
-		                                DLRule *moveRule;
-		                                if (ruleWon)
-		                                    moveRule = createMoveRule(lExpr, rExpr,
-		                                            linkedHeadName, r->head->args);
-		                                else
-		                                    moveRule = createMoveRule(lExpr, rExpr,
-		                                            linkedHeadName,
-		                                            copyObject(newRuleHeadArgs));
-
-		                                moveRules = appendToTailOfList(moveRules,
-		                                        moveRule);
-
-		                                lExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel,
-		                                        copyObject(a->args));
-		                                rExpr = createSkolemExpr(GP_NODE_TUPLE,
-		                                        atomRel, copyObject(a->args));
-		                                if (ruleWon)
-		                                    moveRule = createMoveRule(lExpr, rExpr,
-		                                            linkedHeadName, r->head->args);
-		                                else
-		                                    moveRule = createMoveRule(lExpr, rExpr,
-		                                            linkedHeadName,
-		                                            copyObject(newRuleHeadArgs));
-
-		                                moveRules = appendToTailOfList(moveRules,
-		                                        moveRule);
-		                            }
-		                        }
-		                        // -> posR
-		                        else
-		                        {
-		                            if (!goalWon || ruleWon)
-		                            {
-		                                Node *lExpr;
-		                                if (!ruleWon)
-		                                    lExpr =
-		                                            createSkolemExpr(GP_NODE_RULEHYPER,
-		                                                    ruleRel,
-		                                                    copyObject(
-		                                                            removeVars(
-		                                                                    r->head->args,
-		                                                                    removeVars(
-		                                                                            r->head->args,
-		                                                                            ruleArgs))));
-		                                else
-		                                    lExpr = createSkolemExpr(GP_NODE_RULEHYPER,
-		                                            ruleRel, copyObject(r->head->args));
-
-		                                Node *rExpr = createSkolemExpr(GP_NODE_GOALHYPER,
-		                                        goalRel, copyObject(a->args));
-
-		                                DLRule *moveRule;
-		                                if (ruleWon)
-		                                    moveRule = createMoveRule(lExpr, rExpr,
-		                                            linkedHeadName, r->head->args);
-		                                else
-		                                    moveRule = createMoveRule(lExpr, rExpr,
-		                                            linkedHeadName,
-		                                            copyObject(newRuleHeadArgs));
-
-		                                moveRules = appendToTailOfList(moveRules,
-		                                        moveRule);
-
-		                                lExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel,
-		                                        copyObject(a->args));
-
-		                                char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
-		                                				ruleWon ? "_WON" : "_LOST");
-		                                rExpr = createSkolemExpr(GP_NODE_TUPLE,
-		                                		Rel, copyObject(a->args));
-
-		                                if (ruleWon)
-		                                    moveRule = createMoveRule(lExpr, rExpr,
-		                                            linkedHeadName, r->head->args);
-		                                else
-		                                    moveRule = createMoveRule(lExpr, rExpr,
-		                                            linkedHeadName,
-		                                            copyObject(newRuleHeadArgs));
-
-		                                moveRules = appendToTailOfList(moveRules,
-		                                        moveRule);
-		                            }
-		                        }
-		                    }
-		                }
-		                DEBUG_LOG("created new move rule for head -> rule");
-		                j++;
-					}
-	            }
-	            checkPos++;
-	        }
-	        ruleIdPos++;
-	    }
-	}
-
-    return moveRules;
-}
-
-static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules)
-{
-    List *moveRules = NIL;
-
-    if (getBoolOption(OPTION_WHYNOT_ADV))
-	{
-		FOREACH(DLRule,r,unLinkedRules)
-		{
-			boolean ruleWon = DL_HAS_PROP(r->head,
-					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-			List *ruleArgs = NIL;
-			FOREACH(Node,n,r->head->args)
-			{
-				if(isA(n, Constant))
-					ruleArgs = appendToTailOfList(ruleArgs, n);
-				else
-				{
-					if(isA(n, DLVar))
-					{
-						DLVar *v = (DLVar *) n;
-
-						if(v->dt != DT_BOOL)
-							ruleArgs = appendToTailOfList(ruleArgs, v);
-					}
-				}
-			}
-
-			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-					ruleWon ? "_WON" : "_LOST");
-			char *ruleRel = CONCAT_STRINGS(
-					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-					ruleWon ? "_WON" : "_LOST");
-//			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-			int j = 1;
-			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-					strlen(NON_LINKED_POSTFIX));
-
-			List *boolArgs = removeVars(r->head->args,ruleArgs);
-			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
-
-			// head -> rule_i
-			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
-			Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
-			DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
-			moveRules = appendToTailOfList(moveRules, moveRule);
-
-			// filter out neg head atom for answer relation before creating move rules
-			int atPos = 0;
-			List *newRuleBody = NIL;
-
-			if (!ruleWon)
-			{
-				FOREACH(DLAtom,a,r->body)
-				{
-					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-					{
-						if (atPos < LIST_LENGTH(r->body) - 1)
-							newRuleBody = appendToTailOfList(newRuleBody,a);
-					}
-					else
-						newRuleBody = appendToTailOfList(newRuleBody,a);
-
-					atPos++;
-				}
-			}
-			else
-				newRuleBody = copyObject(r->body);
-
-			// rule_i -> goal_i_j -> posR/negR -> posR
-			FOREACH(DLAtom,a,newRuleBody)
-			{
-				// filter out boolean args before creating move rules
-				List *woBoolArgs = NIL;
-				List *argsForMoves = NIL;
-				List *boolArgs = NIL;
-				boolean isNegVar = FALSE;
-
-				Node *atom = (Node *) a;
-
-				if(isA(atom,DLAtom))
-				{
-					FOREACH(Node,n,a->args)
-					{
-						if(isA(n, Constant))
-							woBoolArgs = appendToTailOfList(woBoolArgs,n);
-						else
-						{
-							DLVar *v = NULL;
-
-							if(isA(n, DLVar))
-								v = (DLVar *) n;
-
-							if(isA(n,Operator))
-							{
-								Operator *o = (Operator *) n;
-								v = (DLVar *) getHeadOfListP(o->args);
-							}
-
-							if(v != NULL)
-							{
-								if (v->dt != DT_BOOL)
-									woBoolArgs = appendToTailOfList(woBoolArgs,v);
-								else
-									boolArgs = appendToTailOfList(boolArgs,v);
-							}
-						}
-					}
-//				}
+//static List*createHeadRuleEdbGraphMoveRules(int getMatched, List* negedbRules, List* edbRules, List* unLinkedRules)
+//{
+//	List *moveRules = NIL;
 //
-//				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
+//	if (getBoolOption(OPTION_WHYNOT_ADV))
+//	{
+//		FOREACH(DLRule,r,unLinkedRules)
+//		{
+//			boolean ruleWon = DL_HAS_PROP(r->head,
+//					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//			List *ruleArgs = NIL;
+//			FOREACH(Node,n,r->head->args)
+//			{
+//				if(isA(n, Constant))
+//					ruleArgs = appendToTailOfList(ruleArgs, n);
+//				else
 //				{
-					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
-
-//					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-//							ruleWon ? "_WON" : "_LOST");
-					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_WON" : "_LOST");
-					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_LOST" : "_WON");
-
-					argsForMoves = copyObject(r->head->args);
-
-					if (ruleWon && a->negated)
-						isNegVar = TRUE;
-
-					if (!ruleWon && !LIST_EMPTY(boolArgs))
-					{
-						// check if it is a negated atom
-						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
-
-						if(isA(negVar,Operator))
-						{
-							Operator *o = (Operator *) negVar;
-
-							if(streq(o->name,"not"))
-								isNegVar = TRUE;
-						}
-
-						// set the corresponding Boolean variable to FALSE
-						argsForMoves = replaceNode(argsForMoves,
-												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-												   createConstBool(FALSE));
-					}
-
-					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
-					{
-						// rule -> tuple
-						Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
-						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
-
-						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-						moveRules = appendToTailOfList(moveRules, moveRule);
-					}
-				}
-
-				DEBUG_LOG("created new move rule for head -> rule");
-				j++;
-			}
-		}
-	}
-    else
-    {
-        int checkPos = 0;
-        char *bName = NULL;
-        List *newBoolArgs = NIL;
-        List *collectRuleId = NIL;
-        DLVar* createBoolArgs;
-        int ruleIdPos = 0;
-
-        FOREACH(DLRule,r,unLinkedRules)
-        {
-            boolean ruleWon = DL_HAS_PROP(r->head,
-                    DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-            ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-            DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-            // Collecting all the original variables for later use
-            int argPos = -1;
-            List *ruleArgs = NIL;
-            int rNumGoals = LIST_LENGTH(r->body);
-
-            FOREACH(DLAtom,a,r->body)
-            {
-            	Node *atom = (Node *) a;
-
-    			if(isA(atom,DLAtom))
-    			{
-    	            argPos++;
-
-    	            if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
-    	            		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
-    				{
-    					FOREACH(DLNode,arg,a->args)
-    					{
-    						if (!searchListNode(ruleArgs, (Node *) arg))
-    							ruleArgs = appendToTailOfList(ruleArgs,
-    									copyObject(arg));
-    					}
-    				}
-    			}
-            }
-            DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-            char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-                    ruleWon ? "_WON" : "_LOST");
-            char *ruleRel = CONCAT_STRINGS(
-                    CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-                    !ruleWon ? "_WON" : "_LOST");
-            int j = 0;
-            char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-                    strlen(NON_LINKED_POSTFIX));
-            Node *lExpr;
-            Node *rExpr = NULL;
-            DLRule *moveRule;
-            int goalPos = -1;
-
-            boolean goalChk = FALSE;
-            List *newRuleHeadArgs = NIL;
-            List *boolArgs = removeVars(r->head->args, ruleArgs);
-
-            // create a list for collecting rule id
-            int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-            char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
-                    STRING_VALUE(createConstBool(ruleWon)));
-            int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
-            collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
-
-            // reset the position to check if the rule id is changed
-            if (LIST_LENGTH(collectRuleId) > 1)
-                if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
-                        != getNthOfListInt(collectRuleId, ruleIdPos))
-                    checkPos = 0;
-
-            if (!ruleWon)
-            {
-                // generate boolean args with variables to reduce redundant move rules
-                newBoolArgs = NIL;
-                for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
-                        checkLoop++)
-                {
-                    bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
-                    createBoolArgs = createDLVar(bName, DT_BOOL);
-                    newBoolArgs = appendToTailOfList(newBoolArgs,
-                            copyObject(createBoolArgs));
-                }
-
-                if (checkPos < LIST_LENGTH(boolArgs))
-                    goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
-
-                if (!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-                {
-                    // update the boolean arguments
-                    List *replaceBoolArgs = copyObject(newBoolArgs);
-                    replaceBoolArgs = replaceNode(replaceBoolArgs,
-                            getNthOfListP(replaceBoolArgs, checkPos),
-                            getNthOfListP(boolArgs, checkPos));
-
-                	newRuleHeadArgs = removeVars(r->head->args,
-                            removeVars(r->head->args, ruleArgs));
-                    for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
-                        newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
-                                getNthOfListP(replaceBoolArgs, k));
-
-                    // head atom -> rule hyper edge
-    				lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-    									   copyObject(origAtom->args));
-    				rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
-    						copyObject(
-    								removeVars(r->head->args,
-    										removeVars(r->head->args, ruleArgs))));
-    				moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-    						copyObject(newRuleHeadArgs));
-    				moveRules = appendToTailOfList(moveRules, moveRule);
-                }
-            }
-            else
-            {
-                // head atom -> rule hyper edge
-                lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-                                       copyObject(origAtom->args));
-                rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
-                        copyObject(
-                                removeVars(r->head->args,
-                                        removeVars(r->head->args, ruleArgs))));
-               	moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-               			r->head->args);
-                moveRules = appendToTailOfList(moveRules, moveRule);
-            }
-
-            // rule -> goal atoms
-            lExpr = copyObject(rExpr);
-
-            if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-                    || ruleWon)
-            {
-                FOREACH(DLAtom,a,r->body)
-                {
-                	Node *atom = (Node *) a;
-
-        			if(isA(atom,DLAtom))
-        			{
-                        goalPos++;
-        //                int numHeadArgs = LIST_LENGTH(r->head->args);
-                        boolean goalWon = FALSE;
-                        lExpr = copyObject(lExpr);
-
-                        // Not include the additional atom for filtering out
-                        if (!ruleWon && (goalPos + 1) == rNumGoals
-                                && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
-                        {
-                            goalWon = TRUE;
-                        }
-                        else
-                        {
-                            if ((!ruleWon && checkPos == j) || ruleWon)
-                            {
-                                ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-                                DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
-                                        DL_ORIG_ATOM);
-
-                                char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-                                        ruleWon ? "_WON" : "_LOST");
-                                char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-                                        !ruleWon ? "_WON" : "_LOST");
-
-                                if (!ruleWon)
-                                {
-                                    DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
-                                    goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
-
-        //                            if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
-        //                                    == getMatched)
-        //                            {
-        //                                if (goalPos != rNumGoals - 1)
-        //                                    goalWon = BOOL_VALUE(
-        //                                            getNthOfListP(r->head->args,
-        //                                                    numHeadArgs - (rNumGoals - 1) + goalPos));
-        //                            }
-        //                            else
-        //                                goalWon = BOOL_VALUE(
-        //                                        getNthOfListP(r->head->args,
-        //                                                numHeadArgs - rNumGoals + goalPos));
-                                }
-
-                                // head atom -> negR
-                                if (a->negated)
-                                {
-                                    if (!goalWon)
-                                    {
-                                        rExpr = createSkolemExpr(GP_NODE_TUPLE,
-                                                negAtomRel, copyObject(a->args));
-                                        if (ruleWon)
-                                            moveRule = createMoveRule(lExpr, rExpr,
-                                                    linkedHeadName, r->head->args);
-                                        else
-                                            moveRule = createMoveRule(lExpr, rExpr,
-                                                    linkedHeadName,
-                                                    copyObject(newRuleHeadArgs));
-
-                                        moveRules = appendToTailOfList(moveRules,
-                                                moveRule);
-                                    }
-                                }
-                                // head atom -> posR
-                                else
-                                {
-                                    if (!goalWon || ruleWon)
-                                    {
-                                        rExpr = createSkolemExpr(GP_NODE_TUPLE,
-                                                atomRel, copyObject(a->args));
-                                        if (ruleWon)
-                                            moveRule = createMoveRule(lExpr, rExpr,
-                                                    linkedHeadName, r->head->args);
-                                        else
-                                            moveRule = createMoveRule(lExpr, rExpr,
-                                                    linkedHeadName,
-                                                    copyObject(newRuleHeadArgs));
-
-                                        moveRules = appendToTailOfList(moveRules,
-                                                moveRule);
-                                    }
-                                }
-                            }
-                        }
-                        DEBUG_LOG("created new move rule for tuple -> tuple");
-                        j++;
-        			}
-                }
-                checkPos++;
-            }
-            ruleIdPos++;
-        }
-    }
-
-    return moveRules;
-}
-
-static List*
-createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
-        List* edbRules, List* unLinkedRules)
-{
-    List *moveRules = NIL;
-
-    if (getBoolOption(OPTION_WHYNOT_ADV))
-	{
-		FOREACH(DLRule,r,unLinkedRules)
-		{
-			boolean ruleWon = DL_HAS_PROP(r->head,
-					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-			List *ruleArgs = NIL;
-			FOREACH(Node,n,r->head->args)
-			{
-				if(isA(n, Constant))
-					ruleArgs = appendToTailOfList(ruleArgs, n);
-				else
-				{
-					if(isA(n, DLVar))
-					{
-						DLVar *v = (DLVar *) n;
-
-						if(v->dt != DT_BOOL)
-							ruleArgs = appendToTailOfList(ruleArgs, v);
-					}
-				}
-			}
-
-			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-					ruleWon ? "_WON" : "_LOST");
+//					if(isA(n, DLVar))
+//					{
+//						DLVar *v = (DLVar *) n;
+//
+//						if(v->dt != DT_BOOL)
+//							ruleArgs = appendToTailOfList(ruleArgs, v);
+//					}
+//				}
+//			}
+//
+//			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//					ruleWon ? "_WON" : "_LOST");
 //			char *ruleRel = CONCAT_STRINGS(
 //					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
 //					ruleWon ? "_WON" : "_LOST");
-//			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-			int j = 1;
-			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-					strlen(NON_LINKED_POSTFIX));
-
-			List *boolArgs = removeVars(r->head->args,ruleArgs);
-			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
-
-			// head -> rule_i
-			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
-//			Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
+////			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//			int j = 1;
+//			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//					strlen(NON_LINKED_POSTFIX));
+//
+//			List *boolArgs = removeVars(r->head->args,ruleArgs);
+//			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
+//
+//			// head -> rule_i
+//			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
+//			Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
 //			DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
 //			moveRules = appendToTailOfList(moveRules, moveRule);
-
-			// filter out neg head atom for answer relation before creating move rules
-			int atPos = 0;
-			List *newRuleBody = NIL;
-
-			if (!ruleWon)
-			{
-				FOREACH(DLAtom,a,r->body)
-				{
-					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-					{
-						if (atPos < LIST_LENGTH(r->body) - 1)
-							newRuleBody = appendToTailOfList(newRuleBody,a);
-					}
-					else
-						newRuleBody = appendToTailOfList(newRuleBody,a);
-
-					atPos++;
-				}
-			}
-			else
-				newRuleBody = copyObject(r->body);
-
-			// rule_i -> goal_i_j -> posR/negR -> posR
-			FOREACH(DLAtom,a,newRuleBody)
-			{
-				// filter out boolean args before creating move rules
-				List *woBoolArgs = NIL;
-				List *argsForMoves = NIL;
-				List *boolArgs = NIL;
-				boolean isNegVar = FALSE;
-
-				Node *atom = (Node *) a;
-
-				if(isA(atom,DLAtom))
-				{
-					FOREACH(Node,n,a->args)
-					{
-						if(isA(n, Constant))
-							woBoolArgs = appendToTailOfList(woBoolArgs,n);
-						else
-						{
-							DLVar *v = NULL;
-
-							if(isA(n, DLVar))
-								v = (DLVar *) n;
-
-							if(isA(n,Operator))
-							{
-								Operator *o = (Operator *) n;
-								v = (DLVar *) getHeadOfListP(o->args);
-							}
-
-							if(v != NULL)
-							{
-								if (v->dt != DT_BOOL)
-									woBoolArgs = appendToTailOfList(woBoolArgs,v);
-								else
-									boolArgs = appendToTailOfList(boolArgs,v);
-							}
-						}
-					}
+//
+//			// filter out neg head atom for answer relation before creating move rules
+//			int atPos = 0;
+//			List *newRuleBody = NIL;
+//
+//			if (!ruleWon)
+//			{
+//				FOREACH(DLAtom,a,r->body)
+//				{
+//					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+//					{
+//						if (atPos < LIST_LENGTH(r->body) - 1)
+//							newRuleBody = appendToTailOfList(newRuleBody,a);
+//					}
+//					else
+//						newRuleBody = appendToTailOfList(newRuleBody,a);
+//
+//					atPos++;
+//				}
+//			}
+//			else
+//				newRuleBody = copyObject(r->body);
+//
+//			// rule_i -> goal_i_j -> posR/negR -> posR
+//			FOREACH(DLAtom,a,newRuleBody)
+//			{
+//				// filter out boolean args before creating move rules
+//				List *woBoolArgs = NIL;
+//				List *argsForMoves = NIL;
+//				List *boolArgs = NIL;
+//
+//				Node *atom = (Node *) a;
+//
+//				if(isA(atom,DLAtom))
+//				{
+//					FOREACH(Node,n,a->args)
+//					{
+//						if(isA(n, Constant))
+//							woBoolArgs = appendToTailOfList(woBoolArgs,n);
+//						else
+//						{
+//							DLVar *v = NULL;
+//
+//							if(isA(n, DLVar))
+//								v = (DLVar *) n;
+//
+//							if(isA(n,Operator))
+//							{
+//								Operator *o = (Operator *) n;
+//								v = (DLVar *) getHeadOfListP(o->args);
+//							}
+//
+//							if(v != NULL)
+//							{
+//								if (v->dt != DT_BOOL)
+//									woBoolArgs = appendToTailOfList(woBoolArgs,v);
+//								else
+//									boolArgs = appendToTailOfList(boolArgs,v);
+//							}
+//						}
+//					}
+////				}
+////
+////				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
+////				{
+//					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
+//
+////					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+////							ruleWon ? "_WON" : "_LOST");
+//					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_WON" : "_LOST");
+//					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_LOST" : "_WON");
+//
+//					argsForMoves = copyObject(r->head->args);
+//
+//					if (!ruleWon && !LIST_EMPTY(boolArgs))
+//					{
+//						argsForMoves = replaceNode(argsForMoves,
+//												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+//												   createConstBool(FALSE));
+//					}
+//
+//					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
+//					{
+//						// rule -> tuple
+//						Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
+//						rExpr = createSkolemExpr(GP_NODE_TUPLE, a->negated ? negAtomRel : atomRel, copyObject(woBoolArgs));
+//
+//						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+//						moveRules = appendToTailOfList(moveRules, moveRule);
+//					}
 //				}
 //
-//				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
-//				{
-					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
-
-//					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-//							ruleWon ? "_WON" : "_LOST");
-					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_WON" : "_LOST");
-					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_LOST" : "_WON");
-
-					argsForMoves = copyObject(r->head->args);
-
-					if (ruleWon && a->negated)
-						isNegVar = TRUE;
-
-					if (!ruleWon && !LIST_EMPTY(boolArgs))
-					{
-						// check if it is a negated atom
-						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
-
-						if(isA(negVar,Operator))
-						{
-							Operator *o = (Operator *) negVar;
-
-							if(streq(o->name,"not"))
-								isNegVar = TRUE;
-						}
-
-						// set the corresponding Boolean variable to FALSE
-						argsForMoves = replaceNode(argsForMoves,
-												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-												   createConstBool(FALSE));
-					}
-
-					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
-					{
-						// rule -> tuple
-//						Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
-						Node *rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
-
-						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-						moveRules = appendToTailOfList(moveRules, moveRule);
-					}
-				}
-
-				DEBUG_LOG("created new move rule for head -> rule");
-				j++;
-			}
-		}
-	}
-    else
-    {
-        int checkPos = 0;
-        char *bName = NULL;
-        List *newBoolArgs = NIL;
-        List *collectRuleId = NIL;
-        DLVar* createBoolArgs;
-        int ruleIdPos = 0;
-
-        FOREACH(DLRule,r,unLinkedRules)
-        {
-            boolean ruleWon = DL_HAS_PROP(r->head,
-                    DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-            ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-            DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-            // Collecting all the original variables for later use
-            int argPos = -1;
-            List *ruleArgs = NIL;
-            int rNumGoals = LIST_LENGTH(r->body);
-
-            FOREACH(DLAtom,a,r->body)
-            {
-            	Node *atom = (Node *) a;
-
-    			if(isA(atom,DLAtom))
-    			{
-    	            argPos++;
-    	            if (!ruleWon && (argPos + 1) == rNumGoals
-    	                    && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
-    	                            == getMatched && rNumGoals > 1)
-    	            {
-    	                ruleArgs = copyObject(ruleArgs);
-    	            }
-    	            else
-    	            {
-    	                FOREACH(DLNode,arg,a->args)
-    	                {
-    	                    if (!searchListNode(ruleArgs, (Node *) arg))
-    	                        ruleArgs = appendToTailOfList(ruleArgs,
-    	                                copyObject(arg));
-    	                }
-    	            }
-    			}
-            }
-            DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-            char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-                    ruleWon ? "_WON" : "_LOST");
-            int j = 0;
-            char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-                    strlen(NON_LINKED_POSTFIX));
-            Node *lExpr;
-            Node *rExpr;
-            DLRule *moveRule;
-            int goalPos = -1;
-            boolean goalChk = FALSE;
-            List *newRuleHeadArgs = NIL;
-            List *boolArgs = removeVars(r->head->args, ruleArgs);
-
-            // head atom
-            lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-                                   copyObject(origAtom->args));
-
-            // create a list for collecting rule id
-            int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-            char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
-                    STRING_VALUE(createConstBool(ruleWon)));
-            int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
-            collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
-
-            // reset the position to check if the rule id is changed
-            if (LIST_LENGTH(collectRuleId) > 1)
-                if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
-                        != getNthOfListInt(collectRuleId, ruleIdPos))
-                    checkPos = 0;
-
-            if (!ruleWon)
-            {
-                // generate boolean args with variables to reduce redundant move rules
-                newBoolArgs = NIL;
-                for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
-                        checkLoop++)
-                {
-                    bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
-                    createBoolArgs = createDLVar(bName, DT_BOOL);
-                    newBoolArgs = appendToTailOfList(newBoolArgs,
-                            copyObject(createBoolArgs));
-                }
-
-                if (checkPos < LIST_LENGTH(boolArgs))
-                    goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
-            }
-
-            if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-                    || ruleWon)
-            {
-                if (!ruleWon)
-                {
-                    // update the boolean arguments
-                    List *replaceBoolArgs = copyObject(newBoolArgs);
-                    replaceBoolArgs = replaceNode(replaceBoolArgs,
-                            getNthOfListP(replaceBoolArgs, checkPos),
-                            getNthOfListP(boolArgs, checkPos));
-
-                    newRuleHeadArgs = removeVars(r->head->args,
-                            removeVars(r->head->args, ruleArgs));
-                    for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
-                        newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
-                                getNthOfListP(replaceBoolArgs, k));
-                }
-
-                FOREACH(DLAtom,a,r->body)
-                {
-                	Node *atom = (Node *) a;
-
-        			if(isA(atom,DLAtom))
-        			{
-                    	goalPos++;
-        //                int numHeadArgs = LIST_LENGTH(r->head->args);
-                        boolean goalWon = FALSE;
-                        lExpr = copyObject(lExpr);
-
-                        // Not include the additional atom for filtering out
-                        if (!ruleWon && (goalPos + 1) == rNumGoals
-                                && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
-                        {
-                            goalWon = TRUE;
-                        }
-                        else
-                        {
-                            if ((!ruleWon && checkPos == j) || ruleWon)
-                            {
-                                ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-                                DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
-                                        DL_ORIG_ATOM);
-
-                                char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-                                        ruleWon ? "_WON" : "_LOST");
-                                char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-                                        !ruleWon ? "_WON" : "_LOST");
-
-                                if (!ruleWon)
-                                {
-                                    DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
-                                    goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
-
-        //                            if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
-        //                                    == getMatched)
-        //                            {
-        //                                if (goalPos != rNumGoals - 1)
-        //                                    goalWon = BOOL_VALUE(
-        //                                            getNthOfListP(r->head->args,
-        //                                                    numHeadArgs - (rNumGoals - 1) + goalPos));
-        //                            }
-        //                            else
-        //                                goalWon = BOOL_VALUE(
-        //                                        getNthOfListP(r->head->args,
-        //                                                numHeadArgs - rNumGoals + goalPos));
-                                }
-
-                                // head atom -> negR
-                                if (a->negated)
-                                {
-                                    if (!goalWon)
-                                    {
-                                        rExpr = createSkolemExpr(GP_NODE_TUPLE,
-                                                negAtomRel, copyObject(a->args));
-                                        if (ruleWon)
-                                            moveRule = createMoveRule(lExpr, rExpr,
-                                                    linkedHeadName, r->head->args);
-                                        else
-                                            moveRule = createMoveRule(lExpr, rExpr,
-                                                    linkedHeadName,
-                                                    copyObject(newRuleHeadArgs));
-
-                                        moveRules = appendToTailOfList(moveRules,
-                                                moveRule);
-                                    }
-                                }
-                                // head atom -> posR
-                                else
-                                {
-                                    if (!goalWon || ruleWon)
-                                    {
-                                        rExpr = createSkolemExpr(GP_NODE_TUPLE,
-                                                atomRel, copyObject(a->args));
-                                        if (ruleWon)
-                                            moveRule = createMoveRule(lExpr, rExpr,
-                                                    linkedHeadName, r->head->args);
-                                        else
-                                            moveRule = createMoveRule(lExpr, rExpr,
-                                                    linkedHeadName,
-                                                    copyObject(newRuleHeadArgs));
-
-                                        moveRules = appendToTailOfList(moveRules,
-                                                moveRule);
-                                    }
-                                }
-                            }
-                        }
-                        DEBUG_LOG("created new move rule for tuple -> tuple");
-                        j++;
-        			}
-                }
-                checkPos++;
-            }
-            ruleIdPos++;
-        }
-    }
-
-    return moveRules;
-}
-
-static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* edbRules,
-        List* unLinkedRules)
-{
-	List *moveRules = NIL;
-
-	if (getBoolOption(OPTION_WHYNOT_ADV))
-	{
-		FOREACH(DLRule,r,unLinkedRules)
-		{
-			boolean ruleWon = DL_HAS_PROP(r->head,DL_WON)
-					|| DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-			/* Collecting all the original variables for later use */
+//				DEBUG_LOG("created new move rule for head -> rule");
+//				j++;
+//			}
+//		}
+//	}
+//	else
+//	{
+//		int checkPos = 0;
+//		char *bName = NULL;
+//		List *newBoolArgs = NIL;
+//		List *collectRuleId = NIL;
+//		DLVar* createBoolArgs;
+//		int ruleIdPos = 0;
+//
+//		FOREACH(DLRule,r,unLinkedRules)
+//		{
+//			boolean ruleWon = DL_HAS_PROP(r->head,
+//					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//			// Collecting all the original variables for later use
 //			int argPos = -1;
-			List *ruleArgs = NIL;
+//			List *ruleArgs = NIL;
 //			int rNumGoals = LIST_LENGTH(r->body);
 //
 //			FOREACH(DLAtom,a,r->body)
@@ -2393,1002 +851,2547 @@ static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* ed
 //				{
 //					argPos++;
 //
-//					if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
-//							|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
+//		            if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
+//		            		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
 //					{
 //						FOREACH(DLNode,arg,a->args)
 //						{
-//							DLVar *v = (DLVar *) arg;
-//
-//							if (!searchListNode(ruleArgs, (Node *) arg) && v->dt != DT_BOOL)
+//							if (!searchListNode(ruleArgs, (Node *) arg))
 //								ruleArgs = appendToTailOfList(ruleArgs,
 //										copyObject(arg));
 //						}
 //					}
 //				}
 //			}
-
-			FOREACH(Node,n,r->head->args)
-			{
-//				if (!searchListNode(ruleArgs, n))
-//				{
-				if(isA(n, Constant))
-				{
-					ruleArgs = appendToTailOfList(ruleArgs, n);
-				}
-				else
-				{
-					if(isA(n, DLVar))
-					{
-						DLVar *v = (DLVar *) n;
-
-						if(v->dt != DT_BOOL)
-							ruleArgs = appendToTailOfList(ruleArgs, v);
-					}
-				}
-//				}
-			}
-
-			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-					ruleWon ? "_WON" : "_LOST");
-			char *ruleRel = CONCAT_STRINGS(
-					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-					ruleWon ? "_WON" : "_LOST");
-			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-			int j = 1;
-			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-					strlen(NON_LINKED_POSTFIX));
-
-			List *boolArgs = removeVars(r->head->args,ruleArgs);
-			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
-
-//			for(int boolPos = 0; boolPos < LIST_LENGTH(boolArgs); boolPos++)
+//			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//					ruleWon ? "_WON" : "_LOST");
+//			char *ruleRel = CONCAT_STRINGS(
+//					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+//					ruleWon ? "_WON" : "_LOST");
+//	//		i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//			int j = 0;
+//			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//					strlen(NON_LINKED_POSTFIX));
+//
+//			// remove over generated move rules
+//			boolean goalChk = FALSE;
+//			List *newRuleHeadArgs = NIL;
+//			List *boolArgs = removeVars(r->head->args, ruleArgs);
+//
+//			// create a list for collecting rule id
+//			int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
+//			char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
+//					STRING_VALUE(createConstBool(ruleWon)));
+//			int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
+//			collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
+//
+//			// reset the position to check if the rule id is changed
+//			if (LIST_LENGTH(collectRuleId) > 1)
+//				if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
+//						!= getNthOfListInt(collectRuleId, ruleIdPos))
+//					checkPos = 0;
+//
+//			// head -> rule_i
+//			if (!ruleWon)
 //			{
-//				List *newArgs = copyObject(r->head->args);
-//				Node *n = (Node *) getNthOfListP(newArgs, LIST_LENGTH(ruleArgs) + boolPos);
-//				newArgs = replaceNode(newArgs,
-//						   getNthOfListP(newArgs, LIST_LENGTH(ruleArgs) + boolPos),
-//						   isA(n,Operator) ? createConstBool(TRUE) : createConstBool(FALSE));
-
-				// head -> rule_i
-				Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
-				Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
-	//					copyObject(
-	//								removeVars(r->head->args,
-	//										removeVars(r->head->args, ruleArgs))));
-				DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
-				moveRules = appendToTailOfList(moveRules, moveRule);
-//			}
-
-
-			// filter out neg head atom for answer relation before creating move rules
-			int atPos = 0;
-			List *newRuleBody = NIL;
-
-			if (!ruleWon)
-			{
-				FOREACH(DLAtom,a,r->body)
-				{
-					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
-					{
-						if (atPos < LIST_LENGTH(r->body) - 1)
-							newRuleBody = appendToTailOfList(newRuleBody,a);
-					}
-					else
-					{
-						newRuleBody = appendToTailOfList(newRuleBody,a);
-					}
-
-					atPos++;
-				}
-			}
-			else
-			{
-				newRuleBody = copyObject(r->body);
-			}
-
-			// rule_i -> goal_i_j -> posR/negR -> posR
-			FOREACH(DLAtom,a,newRuleBody)
-			{
-				// filter out boolean args before creating move rules
-				List *woBoolArgs = NIL;
-				List *argsForMoves = NIL;
-				List *boolArgs = NIL;
-				boolean isNegVar = FALSE;
-
-				Node *atom = (Node *) a;
-
-				if(isA(atom,DLAtom))
-				{
-					FOREACH(Node,n,a->args)
-					{
-						if(isA(n, Constant))
-						{
-							woBoolArgs = appendToTailOfList(woBoolArgs,n);
-						}
-						else
-						{
-							DLVar *v = NULL;
-
-							if(isA(n, DLVar))
-								v = (DLVar *) n;
-
-							if(isA(n,Operator))
-							{
-								Operator *o = (Operator *) n;
-								v = (DLVar *) getHeadOfListP(o->args);
-							}
-
-							if(v != NULL)
-							{
-								if (v->dt != DT_BOOL)
-									woBoolArgs = appendToTailOfList(woBoolArgs,v);
-								else
-									boolArgs = appendToTailOfList(boolArgs,v);
-							}
-						}
-					}
+//				// generate boolean args with variables to reduce redundant move rules
+//				newBoolArgs = NIL;
+//				for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
+//						checkLoop++)
+//				{
+//					bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
+//					createBoolArgs = createDLVar(bName, DT_BOOL);
+//					newBoolArgs = appendToTailOfList(newBoolArgs,
+//							copyObject(createBoolArgs));
 //				}
 //
-//				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
+//				if (checkPos < LIST_LENGTH(boolArgs))
+//					goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
+//
+//				if (!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
 //				{
-					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
-
-					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-							ruleWon ? "_WON" : "_LOST");
-					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_WON" : "_LOST");
-					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-							ruleWon ? "_LOST" : "_WON");
-
-					argsForMoves = copyObject(r->head->args);
-
-					if (ruleWon && a->negated)
-						isNegVar = TRUE;
-
-					if (!ruleWon && !LIST_EMPTY(boolArgs))
-					{
-//						Node *n = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+//					// update the boolean arguments
+//					List *replaceBoolArgs = copyObject(newBoolArgs);
+//					replaceBoolArgs = replaceNode(replaceBoolArgs,
+//							getNthOfListP(replaceBoolArgs, checkPos),
+//							getNthOfListP(boolArgs, checkPos));
+//
+//					newRuleHeadArgs = removeVars(r->head->args,
+//							removeVars(r->head->args, ruleArgs));
+//					for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
+//						newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
+//								getNthOfListP(replaceBoolArgs, k));
+//
+//					Node *lExpr;
+//					Node *rExpr;
+//					DLRule *moveRule;
+//					lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//							copyObject(origAtom->args));
+//					rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
+//							copyObject(
+//									removeVars(r->head->args,
+//											removeVars(r->head->args, ruleArgs))));
+//					moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//							copyObject(newRuleHeadArgs));
+//					moveRules = appendToTailOfList(moveRules, moveRule);
+//				}
+//			}
+//			else
+//			{
+//				Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//						copyObject(origAtom->args));
+//				Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
+//						copyObject(r->head->args));
+//				DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//						r->head->args);
+//				moveRules = appendToTailOfList(moveRules, moveRule);
+//			}
+//
+//			// rule_i -> goal_i_j -> posR/negR -> posR
+//			int goalPos = -1;
+//
+//			if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
+//					|| ruleWon)
+//			{
+//				FOREACH(DLAtom,a,r->body)
+//				{
+//					Node *atom = (Node *) a;
+//
+//					if(isA(atom,DLAtom))
+//					{
+//						goalPos++;
+//						//              int unruleNumGoals = LIST_LENGTH(r->body);
+//		//				int numHeadArgs = LIST_LENGTH(r->head->args);
+//						boolean goalWon = FALSE;
+//						boolean relWon = FALSE;
+//
+//						// Not include the additional atom for filtering out
+//						if (!ruleWon && (goalPos + 1) == rNumGoals
+//								&& INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
+//						{
+//							goalWon = TRUE;
+//						}
+//						else
+//						{
+//							if ((!ruleWon && checkPos == j) || ruleWon)
+//							{
+//								ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//								DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
+//										DL_ORIG_ATOM);
+//
+//		//						char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+//		//								ruleWon ? "_WON" : "_LOST");
+//
+//								// is goal won?
+//								if (!ruleWon)
+//								{
+//		                            DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
+//		                            goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
+//
+//		//							if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
+//		//									== getMatched)
+//		//							{
+//		//								if (goalPos != rNumGoals - 1)
+//		//									goalWon = BOOL_VALUE(
+//		//											getNthOfListP(r->head->args,
+//		//													numHeadArgs - (rNumGoals - 1) + goalPos));
+//		//							}
+//		//							else
+//		//								goalWon = BOOL_VALUE(
+//		//										getNthOfListP(r->head->args,
+//		//												numHeadArgs - rNumGoals + goalPos));
+//								}
+//								else
+//									goalWon = TRUE;
+//
+//								DEBUG_LOG("goal is %s and goal is negated %s", goalWon ? "TRUE" : "FALSE", a->negated ? "TRUE" : "FALSE");
+//
+//								// is tuple won?
+//								if ((goalWon && (!a->negated)) || ((!goalWon) && a->negated))
+//								{
+//									relWon = TRUE;
+//								}
+//								else
+//								{
+//									relWon = FALSE;
+//								}
+//
+//								char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//										relWon ? "_WON" : "_LOST");
+//
+//								// -> posR
+//								if (a->negated)
+//								{
+//									if (!goalWon || ruleWon)
+//									{
+//										Node *lExpr = createSkolemExpr(GP_NODE_RULE,
+//												ruleRel,
+//												copyObject(
+//														removeVars(r->head->args,
+//																removeVars(
+//																		r->head->args,
+//																		ruleArgs))));
+//										Node *rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//												atomRel, copyObject(a->args));
+//										DLRule *moveRule;
+//										if (ruleWon)
+//											moveRule = createMoveRule(lExpr, rExpr,
+//													linkedHeadName, r->head->args);
+//										else
+//											moveRule = createMoveRule(lExpr, rExpr,
+//													linkedHeadName,
+//													copyObject(newRuleHeadArgs));
+//
+//										moveRules = appendToTailOfList(moveRules,
+//												moveRule);
+//									}
+//								}
+//								// -> posR
+//								else
+//								{
+//									if (!goalWon || ruleWon)
+//									{
+//										Node *lExpr;
+//										if (!ruleWon)
+//											lExpr =
+//													createSkolemExpr(GP_NODE_RULE,
+//															ruleRel,
+//															copyObject(
+//																	removeVars(
+//																			r->head->args,
+//																			removeVars(
+//																					r->head->args,
+//																					ruleArgs))));
+//										else
+//											lExpr = createSkolemExpr(GP_NODE_RULE,
+//													ruleRel, copyObject(r->head->args));
+//
+//										char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
+//														ruleWon ? "_WON" : "_LOST");
+//										Node *rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//												Rel, copyObject(a->args));
+//
+//										DLRule *moveRule;
+//										if (ruleWon)
+//											moveRule = createMoveRule(lExpr, rExpr,
+//													linkedHeadName, r->head->args);
+//										else
+//											moveRule = createMoveRule(lExpr, rExpr,
+//													linkedHeadName,
+//													copyObject(newRuleHeadArgs));
+//
+//										moveRules = appendToTailOfList(moveRules,
+//												moveRule);
+//									}
+//								}
+//							}
+//						}
+//						DEBUG_LOG("created new move rule for head -> rule");
+//						j++;
+//					}
+//				}
+//				checkPos++;
+//			}
+//			ruleIdPos++;
+//		}
+//	}
+//
+//	return moveRules;
+//}
+//
+//static List*createTupleRuleGoalTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//        List* unLinkedRules)
+//{
+//    List *moveRules = NIL;
+//
+//	if (getBoolOption(OPTION_WHYNOT_ADV))
+//	{
+//		FOREACH(DLRule,r,unLinkedRules)
+//		{
+//			boolean ruleWon = DL_HAS_PROP(r->head,
+//					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//			List *ruleArgs = NIL;
+//			FOREACH(Node,n,r->head->args)
+//			{
+//				if(isA(n, Constant))
+//					ruleArgs = appendToTailOfList(ruleArgs, n);
+//				else
+//				{
+//					if(isA(n, DLVar))
+//					{
+//						DLVar *v = (DLVar *) n;
+//
+//						if(v->dt != DT_BOOL)
+//							ruleArgs = appendToTailOfList(ruleArgs, v);
+//					}
+//				}
+//			}
+//
+//			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//					ruleWon ? "_WON" : "_LOST");
+//			char *ruleRel = CONCAT_STRINGS(
+//					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+//					ruleWon ? "_WON" : "_LOST");
+//			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//			int j = 1;
+//			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//					strlen(NON_LINKED_POSTFIX));
+//
+//			List *boolArgs = removeVars(r->head->args,ruleArgs);
+//			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
+//
+//			// head -> rule_i
+//			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
+//			Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
+//			DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
+//			moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//			// filter out neg head atom for answer relation before creating move rules
+//			int atPos = 0;
+//			List *newRuleBody = NIL;
+//
+//			if (!ruleWon)
+//			{
+//				FOREACH(DLAtom,a,r->body)
+//				{
+//					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+//					{
+//						if (atPos < LIST_LENGTH(r->body) - 1)
+//							newRuleBody = appendToTailOfList(newRuleBody,a);
+//					}
+//					else
+//						newRuleBody = appendToTailOfList(newRuleBody,a);
+//
+//					atPos++;
+//				}
+//			}
+//			else
+//				newRuleBody = copyObject(r->body);
+//
+//			// rule_i -> goal_i_j -> posR/negR -> posR
+//			FOREACH(DLAtom,a,newRuleBody)
+//			{
+//				// filter out boolean args before creating move rules
+//				List *woBoolArgs = NIL;
+//				List *argsForMoves = NIL;
+//				List *boolArgs = NIL;
+//				boolean isNegVar = FALSE;
+//
+//				Node *atom = (Node *) a;
+//
+//				if(isA(atom,DLAtom))
+//				{
+//					FOREACH(Node,n,a->args)
+//					{
+//						if(isA(n, Constant))
+//							woBoolArgs = appendToTailOfList(woBoolArgs,n);
+//						else
+//						{
+//							DLVar *v = NULL;
+//
+//							if(isA(n, DLVar))
+//								v = (DLVar *) n;
+//
+//							if(isA(n,Operator))
+//							{
+//								Operator *o = (Operator *) n;
+//								v = (DLVar *) getHeadOfListP(o->args);
+//							}
+//
+//							if(v != NULL)
+//							{
+//								if (v->dt != DT_BOOL)
+//									woBoolArgs = appendToTailOfList(woBoolArgs,v);
+//								else
+//									boolArgs = appendToTailOfList(boolArgs,v);
+//							}
+//						}
+//					}
+//
+//					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
+//
+//					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+//							ruleWon ? "_WON" : "_LOST");
+//					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_WON" : "_LOST");
+//					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_LOST" : "_WON");
+//
+//					argsForMoves = copyObject(r->head->args);
+//
+//					if (ruleWon && a->negated)
+//						isNegVar = TRUE;
+//
+//					if (!ruleWon && !LIST_EMPTY(boolArgs))
+//					{
+//
+//						// check if it is a negated atom
+//						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+//
+//						if(isA(negVar,Operator))
+//						{
+//							Operator *o = (Operator *) negVar;
+//
+//							if(streq(o->name,"not"))
+//								isNegVar = TRUE;
+//						}
+//
+//						// set the corresponding Boolean variable to FALSE
 //						argsForMoves = replaceNode(argsForMoves,
 //												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-//												   isA(n,Operator) ? createConstBool(TRUE): createConstBool(FALSE));
-
-						// check if it is a negated atom
-						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
-
-						if(isA(negVar,Operator))
-						{
-							Operator *o = (Operator *) negVar;
-
-							if(streq(o->name,"not"))
-								isNegVar = TRUE;
-						}
-
-						// set the corresponding Boolean variable to FALSE
-						argsForMoves = replaceNode(argsForMoves,
-												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
-												   createConstBool(FALSE));
-					}
-
-					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
-					{
-						// rule -> goal
-						Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
-	//	                                	removeVars(r->head->args,
-	//	                                        removeVars(r->head->args, ruleArgs))));
-						Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
-
-						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-						moveRules = appendToTailOfList(moveRules, moveRule);
-
-						// goal -> tuple
-						lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
-						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
-
-						moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
-						moveRules = appendToTailOfList(moveRules, moveRule);
-					}
-				}
-
-				DEBUG_LOG("created new move rule for head -> rule");
-				j++;
-			}
-		}
-	}
-	else
-	{
-	    int checkPos = 0;
-	    int ruleIdPos = 0;
-	    char *bName = NULL;
-
-	    List *newBoolArgs = NIL;
-	    List *collectRuleId = NIL;
-        List *negIdbs = NIL;
-
-        DLVar* createBoolArgs;
-
-
-	    FOREACH(DLRule,r,unLinkedRules)
-	    {
-	        boolean ruleWon = DL_HAS_PROP(r->head,DL_WON)
-	        		|| DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-	        ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-	        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-            // to compare orig atom without properties
-            DLAtom *copiedOrig = copyObject(origAtom);
-            copiedOrig->n.properties = NULL;
-
-            boolean onlyConst = TRUE;
-
-            FOREACH(Node,n,copiedOrig->args)
-            {
-            	if(isA(n,DLVar))
-            	{
-            		onlyConst = FALSE;
-            	}
-            }
-
-	        // Collecting all the original variables for later use
-	        int argPos = -1;
-	        int rNumGoals = LIST_LENGTH(r->body);
-	        List *ruleArgs = NIL;
-
-	        FOREACH(DLAtom,a,r->body)
-	        {
-	        	Node *atom = (Node *) a;
-
-				if(isA(atom,DLAtom))
-				{
-		        	argPos++;
-
-	                if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
-	                		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
-		            {
-		                FOREACH(DLNode,arg,a->args)
-		                {
-		                    if (!searchListNode(ruleArgs, (Node *) arg))
-		                        ruleArgs = appendToTailOfList(ruleArgs,
-		                                copyObject(arg));
-						}
-		            }
-				}
-
-				// keep track of negated idb atom
-				if(a->negated && DL_HAS_PROP(a, DL_IS_IDB_REL))
-				{
-					DLAtom *negAt = copyObject((DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM));
-					negAt->negated = FALSE;
-					negAt->n.properties = NULL;
-					negIdbs = appendToTailOfList(negIdbs, negAt);
-				}
-	        }
-	        DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
-
-	        char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-	                ruleWon ? "_WON" : "_LOST");
-	        char *ruleRel = CONCAT_STRINGS(
-	                CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-	                ruleWon ? "_WON" : "_LOST");
-	        int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-	        int j = 0;
-	        char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-	                strlen(NON_LINKED_POSTFIX));
-
-	        // remove over generated move rules
-	        boolean goalChk = FALSE;
-	        List *newRuleHeadArgs = NIL;
-	        List *boolArgs = removeVars(r->head->args, ruleArgs);
-
-	        // create a list for collecting rule id
-	        int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-	        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
-	                STRING_VALUE(createConstBool(ruleWon)));
-	        int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
-	        collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
-
-	        // reset the position to check if the rule id is changed
-	        if (LIST_LENGTH(collectRuleId) > 1)
-	            if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
-	                    != getNthOfListInt(collectRuleId, ruleIdPos))
-	                checkPos = 0;
-
-	        // head -> rule_i
-	        if (!ruleWon)
-	        {
-	            // generate boolean args with variables to reduce redundant move rules
-	            newBoolArgs = NIL;
-	            for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
-	                    checkLoop++)
-	            {
-	                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
-	                createBoolArgs = createDLVar(bName, DT_BOOL);
-	                newBoolArgs = appendToTailOfList(newBoolArgs,
-	                        copyObject(createBoolArgs));
-	            }
-
-	            if (checkPos < LIST_LENGTH(boolArgs))
-	                goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
-
-	            if (!goalChk && checkPos < LIST_LENGTH(boolArgs))
-	            {
-	                // update the boolean arguments
-	                List *replaceBoolArgs = copyObject(newBoolArgs);
-	                replaceBoolArgs = replaceNode(replaceBoolArgs,
-	                        getNthOfListP(replaceBoolArgs, checkPos),
-	                        getNthOfListP(boolArgs, checkPos));
-
-	                newRuleHeadArgs = removeVars(r->head->args, removeVars(r->head->args, ruleArgs));
-	                for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
-	                    newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
-	                            getNthOfListP(replaceBoolArgs, k));
-
-	                // do not generate move rules for failure if it is negated in the body of another rule
-	                if(!searchListNode(negIdbs,(Node *) copiedOrig) || onlyConst)
-	                {
-		                Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-		                        copyObject(origAtom->args));
-		                Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
-		                        copyObject(
-		                                removeVars(r->head->args,
-		                                        removeVars(r->head->args, ruleArgs))));
-		                DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-		                		copyObject(newRuleHeadArgs));
-		                moveRules = appendToTailOfList(moveRules, moveRule);
-	                }
-	            }
-
-	            // create move rules for successful derivations for why-not
-	            if(!searchListNode(boolArgs,(Node *) createConstBool(FALSE)))
-	            {
-	            	char *posHeadRel = CONCAT_STRINGS(strdup(origAtom->rel),"_WON");
-					char *posRuleRel = CONCAT_STRINGS(CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),"_WON");
-
-		            Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, posHeadRel, copyObject(origAtom->args));
-		            Node *rExpr = createSkolemExpr(GP_NODE_RULE, posRuleRel, copyObject(
-                            removeVars(r->head->args,
-                                    removeVars(r->head->args, ruleArgs))));
-		            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
-
-		            moveRules = appendToTailOfList(moveRules, moveRule);
-	            }
-	        }
-	        else
-	        {
-	            Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
-	                    copyObject(origAtom->args));
-	            Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
-	                    copyObject(r->head->args));
-	            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-	                    r->head->args);
-	            moveRules = appendToTailOfList(moveRules, moveRule);
-	        }
-
-	        // rule_i -> goal_i_j -> posR/negR -> posR
-	        int goalPos = -1;
-
-	        if (ruleWon ||
-	        		(!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs)))
-	        {
-	            FOREACH(DLAtom,a,r->body)
-	            {
-	            	Node *atom = (Node *) a;
-
-	    			if(isA(atom,DLAtom))
-	    			{
-	                	goalPos++;
-	                    //              int unruleNumGoals = LIST_LENGTH(r->body);
-	    //                int numHeadArgs = LIST_LENGTH(r->head->args);
-	                    boolean goalWon = FALSE;
-	                    boolean relWon = FALSE;
-
-	                    // Not include the additional atom for filtering out
-	                    if (!ruleWon && (goalPos + 1) == rNumGoals &&
-	                    		INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
-	                    {
-	                        goalWon = TRUE;
-	                    }
-	                    else
-	                    {
-	                        if ((!ruleWon && checkPos == j) || ruleWon)
-	                        {
-	                            ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-	                            DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
-	                                    DL_ORIG_ATOM);
-
-	                            char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-	                                    ruleWon ? "_WON" : "_LOST");
-
-	                            // is goal won?
-	                            if (!ruleWon)
-	                            {
-	                                DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
-	                                goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
-	                            }
-	                            else
-	                                goalWon = TRUE;
-
-	                            DEBUG_LOG("goal is %s and goal is negated %s", goalWon ? "TRUE" : "FALSE", a->negated ? "TRUE" : "FALSE");
-
-	                            // is tuple won?
-	                            if ((goalWon && (!a->negated)) || ((!goalWon) && a->negated))
-	                            {
-	                                relWon = TRUE;
-	                            }
-	                            else
-	                            {
-	                                relWon = FALSE;
-	                            }
-
-	                            char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-	                                    relWon ? "_WON" : "_LOST");
-
-	                            // -> posR
-	                            if (a->negated)
-	                            {
-	                                if ((!goalWon && !searchListNode(negIdbs,(Node *) copiedOrig))
-	                                		|| onlyConst || ruleWon)
-	                                {
-	                                    Node *lExpr = createSkolemExpr(GP_NODE_RULE,
-	                                            ruleRel,
-	                                            copyObject(
-	                                                    removeVars(r->head->args,
-	                                                            removeVars(
-	                                                                    r->head->args,
-	                                                                    ruleArgs))));
-	                                    Node *rExpr = createSkolemExpr(GP_NODE_GOAL,
-	                                            goalRel, copyObject(a->args));
-	                                    DLRule *moveRule;
-	                                    if (ruleWon)
-	                                        moveRule = createMoveRule(lExpr, rExpr,
-	                                                linkedHeadName, r->head->args);
-	                                    else
-	                                        moveRule = createMoveRule(lExpr, rExpr,
-	                                                linkedHeadName,
-	                                                copyObject(newRuleHeadArgs));
-
-	                                    moveRules = appendToTailOfList(moveRules,
-	                                            moveRule);
-
-	                                    lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
-	                                            copyObject(a->args));
-
-	                                    // check the goal predicate contains the head predicate
-	    //                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
-	                                    if(DL_HAS_PROP(a, DL_IS_IDB_REL))
-	                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
-	                                    	        atomRel, copyObject(a->args));
-	                                    else
-	                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
-	                                    			atomRel, copyObject(a->args));
-
-	                                    if (ruleWon)
-	                                        moveRule = createMoveRule(lExpr, rExpr,
-	                                                linkedHeadName, r->head->args);
-	                                    else
-	                                        moveRule = createMoveRule(lExpr, rExpr,
-	                                                linkedHeadName,
-	                                                copyObject(newRuleHeadArgs));
-
-	                                    moveRules = appendToTailOfList(moveRules,
-	                                            moveRule);
-	                                }
-	                            }
-	                            // -> posR
-	                            else
-	                            {
-	                                if ((!goalWon && !searchListNode(negIdbs,(Node *) copiedOrig))
-	                                		|| onlyConst || ruleWon)
-	                                {
-	                                    Node *lExpr;
-	                                    if (!ruleWon)
-	                                        lExpr =
-	                                                createSkolemExpr(GP_NODE_RULE,
-	                                                        ruleRel,
-	                                                        copyObject(
-	                                                                removeVars(
-	                                                                        r->head->args,
-	                                                                        removeVars(
-	                                                                                r->head->args,
-	                                                                                ruleArgs))));
-	                                    else
-	                                        lExpr = createSkolemExpr(GP_NODE_RULE,
-	                                                ruleRel, copyObject(r->head->args));
-
-	                                    Node *rExpr = createSkolemExpr(GP_NODE_GOAL,
-	                                            goalRel, copyObject(a->args));
-
-	                                    DLRule *moveRule;
-	                                    if (ruleWon)
-	                                        moveRule = createMoveRule(lExpr, rExpr,
-	                                                linkedHeadName, r->head->args);
-	                                    else
-	                                        moveRule = createMoveRule(lExpr, rExpr,
-	                                                linkedHeadName,
-	                                                copyObject(newRuleHeadArgs));
-
-	                                    moveRules = appendToTailOfList(moveRules,
-	                                            moveRule);
-
-	                                    lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
-	                                            copyObject(a->args));
-
-	                                    char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
-	                                    				ruleWon ? "_WON" : "_LOST");
-
-	                                    // check the goal predicate contains the head predicate
-	    //                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
-	                                    if(DL_HAS_PROP(a, DL_IS_IDB_REL))
-	                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
-	                                    			Rel, copyObject(a->args));
-	                                    else
-	                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
-	                                    			Rel, copyObject(a->args));
-
-	                                    if (ruleWon)
-	                                        moveRule = createMoveRule(lExpr, rExpr,
-	                                                linkedHeadName, r->head->args);
-	                                    else
-	                                        moveRule = createMoveRule(lExpr, rExpr,
-	                                                linkedHeadName,
-	                                                copyObject(newRuleHeadArgs));
-
-	                                    moveRules = appendToTailOfList(moveRules,
-	                                            moveRule);
-	                                }
-	                            }
-	                        }
-	                    }
-	                    DEBUG_LOG("created new move rule for head -> rule");
-	                    j++;
-	    			}
-	            }
-	            checkPos++;
-	        }
-
-	        // create edges of subgraphs for double negation
-	        if(!ruleWon && !searchListNode(boolArgs,(Node *) createConstBool(FALSE)))
-            {
-	        	int g = 0;
-	        	FOREACH(Node,n,r->body)
-				{
-					if(isA(n,DLAtom))
-					{
-						DLAtom *a = (DLAtom *) n;
-						boolean relStatus = a->negated ? FALSE : TRUE;
-
-						// rule -> goal_i^j
-						char *posRuleRel = CONCAT_STRINGS(CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),"_WON");
-			        	char *posGoalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(g), "_WON");
-
-		                Node *lExpr = createSkolemExpr(GP_NODE_RULE,posRuleRel,
-		                		copyObject(removeVars(r->head->args,removeVars(r->head->args,ruleArgs))));
-		                Node *rExpr = createSkolemExpr(GP_NODE_GOAL,posGoalRel,copyObject(a->args));
-
-		                DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, copyObject(r->head->args));
-		                moveRules = appendToTailOfList(moveRules, moveRule);
-
-		                // goal_i^j -> tuple
-		                DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
-		                char *posRel = CONCAT_STRINGS(strdup(origAtom->rel), relStatus ? "_WON" : "_LOST");
-
-		                lExpr = createSkolemExpr(GP_NODE_GOAL,posGoalRel,copyObject(a->args));
-		                rExpr = createSkolemExpr(GP_NODE_TUPLE,posRel,copyObject(a->args));
-
-		                moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, copyObject(r->head->args));
-						moveRules = appendToTailOfList(moveRules, moveRule);
-
-		                g++;
-					}
-				}
-            }
-
-	        ruleIdPos++;
-	    }
-	}
-
-    return moveRules;
-}
-
-static List*
-createGPMoveRules(int getMatched, List* negedbRules,
-        List* edbRules, List* unLinkedRules)
-{
-    List *moveRules = NIL;
-    // create rules for move relation
-    // for edb-help rule
-    FOREACH(DLRule,e,negedbRules)
-    {
-        boolean ruleWon = DL_HAS_PROP(e->head,
-                DL_WON) || DL_HAS_PROP(e->head,DL_UNDER_NEG_WON);
-
-        ASSERT(DL_HAS_PROP(e->head,DL_ORIG_ATOM));
-        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(e->head, DL_ORIG_ATOM);
-        char *rel = CONCAT_STRINGS(strdup(origAtom->rel),
-                ruleWon ? "_WON" : "_LOST");
-        char *negRel = CONCAT_STRINGS(strdup(origAtom->rel),
-                ruleWon ? "_LOST" : "_WON");
-        char *headName = strRemPostfix(strdup(e->head->rel),
-                strlen(NON_LINKED_POSTFIX));
-
-        if (!ruleWon)
-        {
-
-            Node *lExpr = createSkolemExpr(GP_NODE_NEGREL, negRel,
-                    e->head->args);
-            Node *rExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
-            DLRule *moveRule = createMoveRule(lExpr, rExpr, headName,
-                    e->head->args);
-            moveRules = appendToTailOfList(moveRules, moveRule);
-        }
-    }
-    // for each edb rule create two move entries
-    FOREACH(DLRule,e,edbRules)
-    {
-        boolean ruleWon = DL_HAS_PROP(e->head,
-                DL_WON) || DL_HAS_PROP(e->head,DL_UNDER_NEG_WON);
-
-        ASSERT(DL_HAS_PROP(e->head,DL_ORIG_ATOM));
-        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(e->head, DL_ORIG_ATOM);
-
-        char *rel = CONCAT_STRINGS(strdup(origAtom->rel),
-                ruleWon ? "_WON" : "_LOST");
-        char *negRel = CONCAT_STRINGS("r", strdup(origAtom->rel),
-                ruleWon ? "_LOST" : "_WON");
-        char *headName = strRemPostfix(strdup(e->head->rel),
-                strlen(NON_LINKED_POSTFIX));
-
-        // if is won then we
-        if (ruleWon)
-        {
-            Node *lExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
-            Node *rExpr = createSkolemExpr(GP_NODE_EDB, negRel, e->head->args);
-            DLRule *moveRule = createMoveRule(lExpr, rExpr, headName,
-                    e->head->args);
-            moveRules = appendToTailOfList(moveRules, moveRule);
-
-            DEBUG_LOG("NEW MOVE RULE: negR-atom -> R-atom -> R: %s", headName);
-
-        }
-    }
-    // for each rule_i do head -> rule_i, rule_i -> goal_i_j, goal_i_j -> posR/negR -> posR?
-    int checkPos = 0;
-    // To filter out unnecessary move rules (rule_i -> goal_i_j, goal_i_j -> posR/negR)int ruleId = 0;
-    // To check rule id is changedint ruleIdPos = 0;
-    // position in the list of rule idint ruleIdCheck = 0;
-    char *bName = NULL;
-    List *newBoolArgs = NIL;
-    List *collectRuleId = NIL;
-    DLVar* createBoolArgs;
-    int ruleIdPos = 0;
-    boolean filterNegHead = FALSE;
-
-    FOREACH(DLRule,r,unLinkedRules)
-    {
-        boolean ruleWon = DL_HAS_PROP(r->head,
-                DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
-        //        boolean ruleNeg = DL_HAS_PROP(r->head,DL_UNDER_NEG_WON)
-        //                                       || DL_HAS_PROP(r->head,DL_UNDER_NEG_LOST);
-        ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
-        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
-
-        // Collecting all the original variables for later use
-        int argPos = -1;
-        List *ruleArgs = NIL;
-        int rNumGoals = LIST_LENGTH(r->body);
-
-        FOREACH(DLAtom,a,r->body)
-        {
-        	Node *atom = (Node *) a;
-
-        	if(isA(atom,DLAtom))
-        	{
-                argPos++;
-
-//                if (!ruleWon && (argPos + 1) == rNumGoals
-//                        && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
-//                                == getMatched && rNumGoals > 1)
+//												   createConstBool(FALSE));
+//					}
+//
+//					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
+//					{
+//						// rule -> goal
+//						Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
+//						Node *rExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel, copyObject(woBoolArgs));
+//
+//						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+//						moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//						// goal -> tuple
+//						lExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel, copyObject(woBoolArgs));
+//						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
+//
+//						moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+//						moveRules = appendToTailOfList(moveRules, moveRule);
+//					}
+//				}
+//
+//				DEBUG_LOG("created new move rule for head -> rule");
+//				j++;
+//			}
+//		}
+//	}
+//	else
+//	{
+//	    int checkPos = 0;
+//	    char *bName = NULL;
+//	    List *newBoolArgs = NIL;
+//	    List *collectRuleId = NIL;
+//	    DLVar* createBoolArgs;
+//	    int ruleIdPos = 0;
+//
+//	    FOREACH(DLRule,r,unLinkedRules)
+//	    {
+//	        boolean ruleWon = DL_HAS_PROP(r->head,
+//	                DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//	        ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//	        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//	        // Collecting all the original variables for later use
+//	        int argPos = -1;
+//	        List *ruleArgs = NIL;
+//	        int rNumGoals = LIST_LENGTH(r->body);
+//
+//	        FOREACH(DLAtom,a,r->body)
+//	        {
+//	        	Node *atom = (Node *) a;
+//
+//				if(isA(atom,DLAtom))
+//				{
+//		            argPos++;
+//
+//	                if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
+//	                		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
+//		            {
+//		                FOREACH(DLNode,arg,a->args)
+//		                {
+//		                    if (!searchListNode(ruleArgs, (Node *) arg))
+//		                        ruleArgs = appendToTailOfList(ruleArgs,
+//		                                copyObject(arg));
+//						}
+//		            }
+//				}
+//	        }
+//	        DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//	        char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//	                ruleWon ? "_WON" : "_LOST");
+//	        char *ruleRel = CONCAT_STRINGS(
+//	                CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+//	                ruleWon ? "_WON" : "_LOST");
+//	        int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//	        int j = 0;
+//	        char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//	                strlen(NON_LINKED_POSTFIX));
+//
+//	        // remove over generated move rules
+//	        boolean goalChk = FALSE;
+//	        List *newRuleHeadArgs = NIL;
+//	        List *boolArgs = removeVars(r->head->args, ruleArgs);
+//
+//	        // create a list for collecting rule id
+//	        int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
+//	        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
+//	                STRING_VALUE(createConstBool(ruleWon)));
+//	        int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
+//	        collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
+//
+//	        // reset the position to check if the rule id is changed
+//	        if (LIST_LENGTH(collectRuleId) > 1)
+//	            if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
+//	                    != getNthOfListInt(collectRuleId, ruleIdPos))
+//	                checkPos = 0;
+//
+//	        // head -> rule_i
+//	        if (!ruleWon)
+//	        {
+//	            // generate boolean args with variables to reduce redundant move rules
+//	            newBoolArgs = NIL;
+//	            for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
+//	                    checkLoop++)
+//	            {
+//	                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
+//	                createBoolArgs = createDLVar(bName, DT_BOOL);
+//	                newBoolArgs = appendToTailOfList(newBoolArgs,
+//	                        copyObject(createBoolArgs));
+//	            }
+//
+//	            if (checkPos < LIST_LENGTH(boolArgs))
+//	                goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
+//
+//	            if (!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
+//	            {
+//	                // update the boolean arguments
+//	                List *replaceBoolArgs = copyObject(newBoolArgs);
+//	                replaceBoolArgs = replaceNode(replaceBoolArgs,
+//	                        getNthOfListP(replaceBoolArgs, checkPos),
+//	                        getNthOfListP(boolArgs, checkPos));
+//
+//	                newRuleHeadArgs = removeVars(r->head->args,
+//	                        removeVars(r->head->args, ruleArgs));
+//	                for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
+//	                    newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
+//	                            getNthOfListP(replaceBoolArgs, k));
+//
+//					Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//							copyObject(origAtom->args));
+//					Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
+//							copyObject(
+//									removeVars(r->head->args,
+//											removeVars(r->head->args, ruleArgs))));
+//					DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//							copyObject(newRuleHeadArgs));
+//					moveRules = appendToTailOfList(moveRules, moveRule);
+//	            }
+//	        }
+//	        else
+//	        {
+//	            Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//	                    copyObject(origAtom->args));
+//	            Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
+//	                    copyObject(r->head->args));
+//	            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//	                    r->head->args);
+//	            moveRules = appendToTailOfList(moveRules, moveRule);
+//	        }
+//
+//	        // rule_i -> goal_i_j -> posR/negR -> posR
+//	        int goalPos = -1;
+//
+//	        if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
+//	                || ruleWon)
+//	        {
+//	            FOREACH(DLAtom,a,r->body)
+//	            {
+//	            	Node *atom = (Node *) a;
+//
+//					if(isA(atom,DLAtom))
+//					{
+//		                goalPos++;
+//		//              int unruleNumGoals = LIST_LENGTH(r->body);
+//		//                int numHeadArgs = LIST_LENGTH(r->head->args);
+//		                boolean goalWon = FALSE;
+//		                boolean relWon = FALSE;
+//
+//		                // Not include the additional atom for filtering out
+//		                if (!ruleWon && (goalPos + 1) == rNumGoals
+//		                        && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
+//		                {
+//		                    goalWon = TRUE;
+//		                }
+//		                else
+//		                {
+//		                    if ((!ruleWon && checkPos == j) || ruleWon)
+//		                    {
+//		                        ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//		                        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
+//		                                DL_ORIG_ATOM);
+//
+//		                        char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+//		                                ruleWon ? "_WON" : "_LOST");
+//
+//		                        // is goal won?
+//		                        if (!ruleWon)
+//		                        {
+//		                            DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
+//		                            goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
+//
+//		//                            if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
+//		//                                    == getMatched)
+//		//                            {
+//		//                                if (goalPos != rNumGoals - 1)
+//		//                                    goalWon = BOOL_VALUE(
+//		//                                            getNthOfListP(r->head->args,
+//		//                                                    numHeadArgs - (rNumGoals - 1) + goalPos));
+//		//                            }
+//		//                            else
+//		//                                goalWon = BOOL_VALUE(
+//		//                                        getNthOfListP(r->head->args,
+//		//                                                numHeadArgs - rNumGoals + goalPos));
+//		                        }
+//		                        else
+//		                            goalWon = TRUE;
+//
+//		                        DEBUG_LOG("goal is %s and goal is negated %s", goalWon ? "TRUE" : "FALSE", a->negated ? "TRUE" : "FALSE");
+//
+//		                        // is tuple won?
+//		                        if ((goalWon && (!a->negated)) || ((!goalWon) && a->negated))
+//		                        {
+//		                            relWon = TRUE;
+//		                        }
+//		                        else
+//		                        {
+//		                            relWon = FALSE;
+//		                        }
+//
+//		                        char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//		                                relWon ? "_WON" : "_LOST");
+//
+//		                        // -> posR
+//		                        if (a->negated)
+//		                        {
+//		                            if (!goalWon || ruleWon)
+//		                            {
+//		                                Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER,
+//		                                        ruleRel,
+//		                                        copyObject(
+//		                                                removeVars(r->head->args,
+//		                                                        removeVars(
+//		                                                                r->head->args,
+//		                                                                ruleArgs))));
+//		                                Node *rExpr = createSkolemExpr(GP_NODE_GOALHYPER,
+//		                                        goalRel, copyObject(a->args));
+//		                                DLRule *moveRule;
+//		                                if (ruleWon)
+//		                                    moveRule = createMoveRule(lExpr, rExpr,
+//		                                            linkedHeadName, r->head->args);
+//		                                else
+//		                                    moveRule = createMoveRule(lExpr, rExpr,
+//		                                            linkedHeadName,
+//		                                            copyObject(newRuleHeadArgs));
+//
+//		                                moveRules = appendToTailOfList(moveRules,
+//		                                        moveRule);
+//
+//		                                lExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel,
+//		                                        copyObject(a->args));
+//		                                rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//		                                        atomRel, copyObject(a->args));
+//		                                if (ruleWon)
+//		                                    moveRule = createMoveRule(lExpr, rExpr,
+//		                                            linkedHeadName, r->head->args);
+//		                                else
+//		                                    moveRule = createMoveRule(lExpr, rExpr,
+//		                                            linkedHeadName,
+//		                                            copyObject(newRuleHeadArgs));
+//
+//		                                moveRules = appendToTailOfList(moveRules,
+//		                                        moveRule);
+//		                            }
+//		                        }
+//		                        // -> posR
+//		                        else
+//		                        {
+//		                            if (!goalWon || ruleWon)
+//		                            {
+//		                                Node *lExpr;
+//		                                if (!ruleWon)
+//		                                    lExpr =
+//		                                            createSkolemExpr(GP_NODE_RULEHYPER,
+//		                                                    ruleRel,
+//		                                                    copyObject(
+//		                                                            removeVars(
+//		                                                                    r->head->args,
+//		                                                                    removeVars(
+//		                                                                            r->head->args,
+//		                                                                            ruleArgs))));
+//		                                else
+//		                                    lExpr = createSkolemExpr(GP_NODE_RULEHYPER,
+//		                                            ruleRel, copyObject(r->head->args));
+//
+//		                                Node *rExpr = createSkolemExpr(GP_NODE_GOALHYPER,
+//		                                        goalRel, copyObject(a->args));
+//
+//		                                DLRule *moveRule;
+//		                                if (ruleWon)
+//		                                    moveRule = createMoveRule(lExpr, rExpr,
+//		                                            linkedHeadName, r->head->args);
+//		                                else
+//		                                    moveRule = createMoveRule(lExpr, rExpr,
+//		                                            linkedHeadName,
+//		                                            copyObject(newRuleHeadArgs));
+//
+//		                                moveRules = appendToTailOfList(moveRules,
+//		                                        moveRule);
+//
+//		                                lExpr = createSkolemExpr(GP_NODE_GOALHYPER, goalRel,
+//		                                        copyObject(a->args));
+//
+//		                                char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
+//		                                				ruleWon ? "_WON" : "_LOST");
+//		                                rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//		                                		Rel, copyObject(a->args));
+//
+//		                                if (ruleWon)
+//		                                    moveRule = createMoveRule(lExpr, rExpr,
+//		                                            linkedHeadName, r->head->args);
+//		                                else
+//		                                    moveRule = createMoveRule(lExpr, rExpr,
+//		                                            linkedHeadName,
+//		                                            copyObject(newRuleHeadArgs));
+//
+//		                                moveRules = appendToTailOfList(moveRules,
+//		                                        moveRule);
+//		                            }
+//		                        }
+//		                    }
+//		                }
+//		                DEBUG_LOG("created new move rule for head -> rule");
+//		                j++;
+//					}
+//	            }
+//	            checkPos++;
+//	        }
+//	        ruleIdPos++;
+//	    }
+//	}
+//
+//    return moveRules;
+//}
+//
+//static List*createTupleRuleTupleGraphMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//        List* unLinkedRules)
+//{
+//    List *moveRules = NIL;
+//
+//    if (getBoolOption(OPTION_WHYNOT_ADV))
+//	{
+//		FOREACH(DLRule,r,unLinkedRules)
+//		{
+//			boolean ruleWon = DL_HAS_PROP(r->head,
+//					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//			List *ruleArgs = NIL;
+//			FOREACH(Node,n,r->head->args)
+//			{
+//				if(isA(n, Constant))
+//					ruleArgs = appendToTailOfList(ruleArgs, n);
+//				else
+//				{
+//					if(isA(n, DLVar))
+//					{
+//						DLVar *v = (DLVar *) n;
+//
+//						if(v->dt != DT_BOOL)
+//							ruleArgs = appendToTailOfList(ruleArgs, v);
+//					}
+//				}
+//			}
+//
+//			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//					ruleWon ? "_WON" : "_LOST");
+//			char *ruleRel = CONCAT_STRINGS(
+//					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+//					ruleWon ? "_WON" : "_LOST");
+////			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//			int j = 1;
+//			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//					strlen(NON_LINKED_POSTFIX));
+//
+//			List *boolArgs = removeVars(r->head->args,ruleArgs);
+//			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
+//
+//			// head -> rule_i
+//			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
+//			Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
+//			DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
+//			moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//			// filter out neg head atom for answer relation before creating move rules
+//			int atPos = 0;
+//			List *newRuleBody = NIL;
+//
+//			if (!ruleWon)
+//			{
+//				FOREACH(DLAtom,a,r->body)
+//				{
+//					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+//					{
+//						if (atPos < LIST_LENGTH(r->body) - 1)
+//							newRuleBody = appendToTailOfList(newRuleBody,a);
+//					}
+//					else
+//						newRuleBody = appendToTailOfList(newRuleBody,a);
+//
+//					atPos++;
+//				}
+//			}
+//			else
+//				newRuleBody = copyObject(r->body);
+//
+//			// rule_i -> goal_i_j -> posR/negR -> posR
+//			FOREACH(DLAtom,a,newRuleBody)
+//			{
+//				// filter out boolean args before creating move rules
+//				List *woBoolArgs = NIL;
+//				List *argsForMoves = NIL;
+//				List *boolArgs = NIL;
+//				boolean isNegVar = FALSE;
+//
+//				Node *atom = (Node *) a;
+//
+//				if(isA(atom,DLAtom))
+//				{
+//					FOREACH(Node,n,a->args)
+//					{
+//						if(isA(n, Constant))
+//							woBoolArgs = appendToTailOfList(woBoolArgs,n);
+//						else
+//						{
+//							DLVar *v = NULL;
+//
+//							if(isA(n, DLVar))
+//								v = (DLVar *) n;
+//
+//							if(isA(n,Operator))
+//							{
+//								Operator *o = (Operator *) n;
+//								v = (DLVar *) getHeadOfListP(o->args);
+//							}
+//
+//							if(v != NULL)
+//							{
+//								if (v->dt != DT_BOOL)
+//									woBoolArgs = appendToTailOfList(woBoolArgs,v);
+//								else
+//									boolArgs = appendToTailOfList(boolArgs,v);
+//							}
+//						}
+//					}
+////				}
+////
+////				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
+////				{
+//					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
+//
+////					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+////							ruleWon ? "_WON" : "_LOST");
+//					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_WON" : "_LOST");
+//					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_LOST" : "_WON");
+//
+//					argsForMoves = copyObject(r->head->args);
+//
+//					if (ruleWon && a->negated)
+//						isNegVar = TRUE;
+//
+//					if (!ruleWon && !LIST_EMPTY(boolArgs))
+//					{
+//						// check if it is a negated atom
+//						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+//
+//						if(isA(negVar,Operator))
+//						{
+//							Operator *o = (Operator *) negVar;
+//
+//							if(streq(o->name,"not"))
+//								isNegVar = TRUE;
+//						}
+//
+//						// set the corresponding Boolean variable to FALSE
+//						argsForMoves = replaceNode(argsForMoves,
+//												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+//												   createConstBool(FALSE));
+//					}
+//
+//					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
+//					{
+//						// rule -> tuple
+//						Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
+//						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
+//
+//						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+//						moveRules = appendToTailOfList(moveRules, moveRule);
+//					}
+//				}
+//
+//				DEBUG_LOG("created new move rule for head -> rule");
+//				j++;
+//			}
+//		}
+//	}
+//    else
+//    {
+//        int checkPos = 0;
+//        char *bName = NULL;
+//        List *newBoolArgs = NIL;
+//        List *collectRuleId = NIL;
+//        DLVar* createBoolArgs;
+//        int ruleIdPos = 0;
+//
+//        FOREACH(DLRule,r,unLinkedRules)
+//        {
+//            boolean ruleWon = DL_HAS_PROP(r->head,
+//                    DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//            ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//            DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//            // Collecting all the original variables for later use
+//            int argPos = -1;
+//            List *ruleArgs = NIL;
+//            int rNumGoals = LIST_LENGTH(r->body);
+//
+//            FOREACH(DLAtom,a,r->body)
+//            {
+//            	Node *atom = (Node *) a;
+//
+//    			if(isA(atom,DLAtom))
+//    			{
+//    	            argPos++;
+//
+//    	            if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
+//    	            		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
+//    				{
+//    					FOREACH(DLNode,arg,a->args)
+//    					{
+//    						if (!searchListNode(ruleArgs, (Node *) arg))
+//    							ruleArgs = appendToTailOfList(ruleArgs,
+//    									copyObject(arg));
+//    					}
+//    				}
+//    			}
+//            }
+//            DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//            char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                    ruleWon ? "_WON" : "_LOST");
+//            char *ruleRel = CONCAT_STRINGS(
+//                    CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+//                    !ruleWon ? "_WON" : "_LOST");
+//            int j = 0;
+//            char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//                    strlen(NON_LINKED_POSTFIX));
+//            Node *lExpr;
+//            Node *rExpr = NULL;
+//            DLRule *moveRule;
+//            int goalPos = -1;
+//
+//            boolean goalChk = FALSE;
+//            List *newRuleHeadArgs = NIL;
+//            List *boolArgs = removeVars(r->head->args, ruleArgs);
+//
+//            // create a list for collecting rule id
+//            int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
+//            char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
+//                    STRING_VALUE(createConstBool(ruleWon)));
+//            int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
+//            collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
+//
+//            // reset the position to check if the rule id is changed
+//            if (LIST_LENGTH(collectRuleId) > 1)
+//                if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
+//                        != getNthOfListInt(collectRuleId, ruleIdPos))
+//                    checkPos = 0;
+//
+//            if (!ruleWon)
+//            {
+//                // generate boolean args with variables to reduce redundant move rules
+//                newBoolArgs = NIL;
+//                for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
+//                        checkLoop++)
 //                {
-//                    ruleArgs = copyObject(ruleArgs);
+//                    bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
+//                    createBoolArgs = createDLVar(bName, DT_BOOL);
+//                    newBoolArgs = appendToTailOfList(newBoolArgs,
+//                            copyObject(createBoolArgs));
 //                }
-//                else
-                if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
-                		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
-                {
-                    FOREACH(DLNode,arg,a->args)
-                    {
-                        if (!searchListNode(ruleArgs, (Node *) arg))
-                            ruleArgs = appendToTailOfList(ruleArgs,
-                                    copyObject(arg));
-                    }
-                }
+//
+//                if (checkPos < LIST_LENGTH(boolArgs))
+//                    goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
+//
+//                if (!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
+//                {
+//                    // update the boolean arguments
+//                    List *replaceBoolArgs = copyObject(newBoolArgs);
+//                    replaceBoolArgs = replaceNode(replaceBoolArgs,
+//                            getNthOfListP(replaceBoolArgs, checkPos),
+//                            getNthOfListP(boolArgs, checkPos));
+//
+//                	newRuleHeadArgs = removeVars(r->head->args,
+//                            removeVars(r->head->args, ruleArgs));
+//                    for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
+//                        newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
+//                                getNthOfListP(replaceBoolArgs, k));
+//
+//                    // head atom -> rule hyper edge
+//    				lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//    									   copyObject(origAtom->args));
+//    				rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
+//    						copyObject(
+//    								removeVars(r->head->args,
+//    										removeVars(r->head->args, ruleArgs))));
+//    				moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//    						copyObject(newRuleHeadArgs));
+//    				moveRules = appendToTailOfList(moveRules, moveRule);
+//                }
+//            }
+//            else
+//            {
+//                // head atom -> rule hyper edge
+//                lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//                                       copyObject(origAtom->args));
+//                rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel,
+//                        copyObject(
+//                                removeVars(r->head->args,
+//                                        removeVars(r->head->args, ruleArgs))));
+//               	moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//               			r->head->args);
+//                moveRules = appendToTailOfList(moveRules, moveRule);
+//            }
+//
+//            // rule -> goal atoms
+//            lExpr = copyObject(rExpr);
+//
+//            if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
+//                    || ruleWon)
+//            {
+//                FOREACH(DLAtom,a,r->body)
+//                {
+//                	Node *atom = (Node *) a;
+//
+//        			if(isA(atom,DLAtom))
+//        			{
+//                        goalPos++;
+//        //                int numHeadArgs = LIST_LENGTH(r->head->args);
+//                        boolean goalWon = FALSE;
+//                        lExpr = copyObject(lExpr);
+//
+//                        // Not include the additional atom for filtering out
+//                        if (!ruleWon && (goalPos + 1) == rNumGoals
+//                                && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
+//                        {
+//                            goalWon = TRUE;
+//                        }
+//                        else
+//                        {
+//                            if ((!ruleWon && checkPos == j) || ruleWon)
+//                            {
+//                                ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//                                DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
+//                                        DL_ORIG_ATOM);
+//
+//                                char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                                        ruleWon ? "_WON" : "_LOST");
+//                                char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                                        !ruleWon ? "_WON" : "_LOST");
+//
+//                                if (!ruleWon)
+//                                {
+//                                    DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
+//                                    goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
+//
+//        //                            if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
+//        //                                    == getMatched)
+//        //                            {
+//        //                                if (goalPos != rNumGoals - 1)
+//        //                                    goalWon = BOOL_VALUE(
+//        //                                            getNthOfListP(r->head->args,
+//        //                                                    numHeadArgs - (rNumGoals - 1) + goalPos));
+//        //                            }
+//        //                            else
+//        //                                goalWon = BOOL_VALUE(
+//        //                                        getNthOfListP(r->head->args,
+//        //                                                numHeadArgs - rNumGoals + goalPos));
+//                                }
+//
+//                                // head atom -> negR
+//                                if (a->negated)
+//                                {
+//                                    if (!goalWon)
+//                                    {
+//                                        rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//                                                negAtomRel, copyObject(a->args));
+//                                        if (ruleWon)
+//                                            moveRule = createMoveRule(lExpr, rExpr,
+//                                                    linkedHeadName, r->head->args);
+//                                        else
+//                                            moveRule = createMoveRule(lExpr, rExpr,
+//                                                    linkedHeadName,
+//                                                    copyObject(newRuleHeadArgs));
+//
+//                                        moveRules = appendToTailOfList(moveRules,
+//                                                moveRule);
+//                                    }
+//                                }
+//                                // head atom -> posR
+//                                else
+//                                {
+//                                    if (!goalWon || ruleWon)
+//                                    {
+//                                        rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//                                                atomRel, copyObject(a->args));
+//                                        if (ruleWon)
+//                                            moveRule = createMoveRule(lExpr, rExpr,
+//                                                    linkedHeadName, r->head->args);
+//                                        else
+//                                            moveRule = createMoveRule(lExpr, rExpr,
+//                                                    linkedHeadName,
+//                                                    copyObject(newRuleHeadArgs));
+//
+//                                        moveRules = appendToTailOfList(moveRules,
+//                                                moveRule);
+//                                    }
+//                                }
+//                            }
+//                        }
+//                        DEBUG_LOG("created new move rule for tuple -> tuple");
+//                        j++;
+//        			}
+//                }
+//                checkPos++;
+//            }
+//            ruleIdPos++;
+//        }
+//    }
+//
+//    return moveRules;
+//}
+//
+//static List*
+//createTupleOnlyGraphMoveRules(int getMatched, List* negedbRules,
+//        List* edbRules, List* unLinkedRules)
+//{
+//    List *moveRules = NIL;
+//
+//    if (getBoolOption(OPTION_WHYNOT_ADV))
+//	{
+//		FOREACH(DLRule,r,unLinkedRules)
+//		{
+//			boolean ruleWon = DL_HAS_PROP(r->head,
+//					DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//			List *ruleArgs = NIL;
+//			FOREACH(Node,n,r->head->args)
+//			{
+//				if(isA(n, Constant))
+//					ruleArgs = appendToTailOfList(ruleArgs, n);
+//				else
+//				{
+//					if(isA(n, DLVar))
+//					{
+//						DLVar *v = (DLVar *) n;
+//
+//						if(v->dt != DT_BOOL)
+//							ruleArgs = appendToTailOfList(ruleArgs, v);
+//					}
+//				}
+//			}
+//
+//			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//					ruleWon ? "_WON" : "_LOST");
+////			char *ruleRel = CONCAT_STRINGS(
+////					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+////					ruleWon ? "_WON" : "_LOST");
+////			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//			int j = 1;
+//			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//					strlen(NON_LINKED_POSTFIX));
+//
+//			List *boolArgs = removeVars(r->head->args,ruleArgs);
+//			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
+//
+//			// head -> rule_i
+//			Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
+////			Node *rExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
+////			DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
+////			moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//			// filter out neg head atom for answer relation before creating move rules
+//			int atPos = 0;
+//			List *newRuleBody = NIL;
+//
+//			if (!ruleWon)
+//			{
+//				FOREACH(DLAtom,a,r->body)
+//				{
+//					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+//					{
+//						if (atPos < LIST_LENGTH(r->body) - 1)
+//							newRuleBody = appendToTailOfList(newRuleBody,a);
+//					}
+//					else
+//						newRuleBody = appendToTailOfList(newRuleBody,a);
+//
+//					atPos++;
+//				}
+//			}
+//			else
+//				newRuleBody = copyObject(r->body);
+//
+//			// rule_i -> goal_i_j -> posR/negR -> posR
+//			FOREACH(DLAtom,a,newRuleBody)
+//			{
+//				// filter out boolean args before creating move rules
+//				List *woBoolArgs = NIL;
+//				List *argsForMoves = NIL;
+//				List *boolArgs = NIL;
+//				boolean isNegVar = FALSE;
+//
+//				Node *atom = (Node *) a;
+//
+//				if(isA(atom,DLAtom))
+//				{
+//					FOREACH(Node,n,a->args)
+//					{
+//						if(isA(n, Constant))
+//							woBoolArgs = appendToTailOfList(woBoolArgs,n);
+//						else
+//						{
+//							DLVar *v = NULL;
+//
+//							if(isA(n, DLVar))
+//								v = (DLVar *) n;
+//
+//							if(isA(n,Operator))
+//							{
+//								Operator *o = (Operator *) n;
+//								v = (DLVar *) getHeadOfListP(o->args);
+//							}
+//
+//							if(v != NULL)
+//							{
+//								if (v->dt != DT_BOOL)
+//									woBoolArgs = appendToTailOfList(woBoolArgs,v);
+//								else
+//									boolArgs = appendToTailOfList(boolArgs,v);
+//							}
+//						}
+//					}
+////				}
+////
+////				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
+////				{
+//					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
+//
+////					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+////							ruleWon ? "_WON" : "_LOST");
+//					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_WON" : "_LOST");
+//					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_LOST" : "_WON");
+//
+//					argsForMoves = copyObject(r->head->args);
+//
+//					if (ruleWon && a->negated)
+//						isNegVar = TRUE;
+//
+//					if (!ruleWon && !LIST_EMPTY(boolArgs))
+//					{
+//						// check if it is a negated atom
+//						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+//
+//						if(isA(negVar,Operator))
+//						{
+//							Operator *o = (Operator *) negVar;
+//
+//							if(streq(o->name,"not"))
+//								isNegVar = TRUE;
+//						}
+//
+//						// set the corresponding Boolean variable to FALSE
+//						argsForMoves = replaceNode(argsForMoves,
+//												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+//												   createConstBool(FALSE));
+//					}
+//
+//					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
+//					{
+//						// rule -> tuple
+////						Node *lExpr = createSkolemExpr(GP_NODE_RULEHYPER, ruleRel, copyObject(ruleArgs));
+//						Node *rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
+//
+//						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+//						moveRules = appendToTailOfList(moveRules, moveRule);
+//					}
+//				}
+//
+//				DEBUG_LOG("created new move rule for head -> rule");
+//				j++;
+//			}
+//		}
+//	}
+//    else
+//    {
+//        int checkPos = 0;
+//        char *bName = NULL;
+//        List *newBoolArgs = NIL;
+//        List *collectRuleId = NIL;
+//        DLVar* createBoolArgs;
+//        int ruleIdPos = 0;
+//
+//        FOREACH(DLRule,r,unLinkedRules)
+//        {
+//            boolean ruleWon = DL_HAS_PROP(r->head,
+//                    DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//            ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//            DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//            // Collecting all the original variables for later use
+//            int argPos = -1;
+//            List *ruleArgs = NIL;
+//            int rNumGoals = LIST_LENGTH(r->body);
+//
+//            FOREACH(DLAtom,a,r->body)
+//            {
+//            	Node *atom = (Node *) a;
+//
+//    			if(isA(atom,DLAtom))
+//    			{
+//    	            argPos++;
+//    	            if (!ruleWon && (argPos + 1) == rNumGoals
+//    	                    && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
+//    	                            == getMatched && rNumGoals > 1)
+//    	            {
+//    	                ruleArgs = copyObject(ruleArgs);
+//    	            }
+//    	            else
+//    	            {
+//    	                FOREACH(DLNode,arg,a->args)
+//    	                {
+//    	                    if (!searchListNode(ruleArgs, (Node *) arg))
+//    	                        ruleArgs = appendToTailOfList(ruleArgs,
+//    	                                copyObject(arg));
+//    	                }
+//    	            }
+//    			}
+//            }
+//            DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//            char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                    ruleWon ? "_WON" : "_LOST");
+//            int j = 0;
+//            char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//                    strlen(NON_LINKED_POSTFIX));
+//            Node *lExpr;
+//            Node *rExpr;
+//            DLRule *moveRule;
+//            int goalPos = -1;
+//            boolean goalChk = FALSE;
+//            List *newRuleHeadArgs = NIL;
+//            List *boolArgs = removeVars(r->head->args, ruleArgs);
+//
+//            // head atom
+//            lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//                                   copyObject(origAtom->args));
+//
+//            // create a list for collecting rule id
+//            int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
+//            char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
+//                    STRING_VALUE(createConstBool(ruleWon)));
+//            int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
+//            collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
+//
+//            // reset the position to check if the rule id is changed
+//            if (LIST_LENGTH(collectRuleId) > 1)
+//                if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
+//                        != getNthOfListInt(collectRuleId, ruleIdPos))
+//                    checkPos = 0;
+//
+//            if (!ruleWon)
+//            {
+//                // generate boolean args with variables to reduce redundant move rules
+//                newBoolArgs = NIL;
+//                for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
+//                        checkLoop++)
+//                {
+//                    bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
+//                    createBoolArgs = createDLVar(bName, DT_BOOL);
+//                    newBoolArgs = appendToTailOfList(newBoolArgs,
+//                            copyObject(createBoolArgs));
+//                }
+//
+//                if (checkPos < LIST_LENGTH(boolArgs))
+//                    goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
+//            }
+//
+//            if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
+//                    || ruleWon)
+//            {
+//                if (!ruleWon)
+//                {
+//                    // update the boolean arguments
+//                    List *replaceBoolArgs = copyObject(newBoolArgs);
+//                    replaceBoolArgs = replaceNode(replaceBoolArgs,
+//                            getNthOfListP(replaceBoolArgs, checkPos),
+//                            getNthOfListP(boolArgs, checkPos));
+//
+//                    newRuleHeadArgs = removeVars(r->head->args,
+//                            removeVars(r->head->args, ruleArgs));
+//                    for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
+//                        newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
+//                                getNthOfListP(replaceBoolArgs, k));
+//                }
+//
+//                FOREACH(DLAtom,a,r->body)
+//                {
+//                	Node *atom = (Node *) a;
+//
+//        			if(isA(atom,DLAtom))
+//        			{
+//                    	goalPos++;
+//        //                int numHeadArgs = LIST_LENGTH(r->head->args);
+//                        boolean goalWon = FALSE;
+//                        lExpr = copyObject(lExpr);
+//
+//                        // Not include the additional atom for filtering out
+//                        if (!ruleWon && (goalPos + 1) == rNumGoals
+//                                && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
+//                        {
+//                            goalWon = TRUE;
+//                        }
+//                        else
+//                        {
+//                            if ((!ruleWon && checkPos == j) || ruleWon)
+//                            {
+//                                ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//                                DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
+//                                        DL_ORIG_ATOM);
+//
+//                                char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                                        ruleWon ? "_WON" : "_LOST");
+//                                char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                                        !ruleWon ? "_WON" : "_LOST");
+//
+//                                if (!ruleWon)
+//                                {
+//                                    DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
+//                                    goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
+//
+//        //                            if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
+//        //                                    == getMatched)
+//        //                            {
+//        //                                if (goalPos != rNumGoals - 1)
+//        //                                    goalWon = BOOL_VALUE(
+//        //                                            getNthOfListP(r->head->args,
+//        //                                                    numHeadArgs - (rNumGoals - 1) + goalPos));
+//        //                            }
+//        //                            else
+//        //                                goalWon = BOOL_VALUE(
+//        //                                        getNthOfListP(r->head->args,
+//        //                                                numHeadArgs - rNumGoals + goalPos));
+//                                }
+//
+//                                // head atom -> negR
+//                                if (a->negated)
+//                                {
+//                                    if (!goalWon)
+//                                    {
+//                                        rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//                                                negAtomRel, copyObject(a->args));
+//                                        if (ruleWon)
+//                                            moveRule = createMoveRule(lExpr, rExpr,
+//                                                    linkedHeadName, r->head->args);
+//                                        else
+//                                            moveRule = createMoveRule(lExpr, rExpr,
+//                                                    linkedHeadName,
+//                                                    copyObject(newRuleHeadArgs));
+//
+//                                        moveRules = appendToTailOfList(moveRules,
+//                                                moveRule);
+//                                    }
+//                                }
+//                                // head atom -> posR
+//                                else
+//                                {
+//                                    if (!goalWon || ruleWon)
+//                                    {
+//                                        rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//                                                atomRel, copyObject(a->args));
+//                                        if (ruleWon)
+//                                            moveRule = createMoveRule(lExpr, rExpr,
+//                                                    linkedHeadName, r->head->args);
+//                                        else
+//                                            moveRule = createMoveRule(lExpr, rExpr,
+//                                                    linkedHeadName,
+//                                                    copyObject(newRuleHeadArgs));
+//
+//                                        moveRules = appendToTailOfList(moveRules,
+//                                                moveRule);
+//                                    }
+//                                }
+//                            }
+//                        }
+//                        DEBUG_LOG("created new move rule for tuple -> tuple");
+//                        j++;
+//        			}
+//                }
+//                checkPos++;
+//            }
+//            ruleIdPos++;
+//        }
+//    }
+//
+//    return moveRules;
+//}
+//
+//static List*createGPReducedMoveRules(int getMatched, List* negedbRules, List* edbRules,
+//        List* unLinkedRules)
+//{
+//	List *moveRules = NIL;
+//
+//	if (getBoolOption(OPTION_WHYNOT_ADV))
+//	{
+//		FOREACH(DLRule,r,unLinkedRules)
+//		{
+//			boolean ruleWon = DL_HAS_PROP(r->head,DL_WON)
+//					|| DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//			ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//			DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//			/* Collecting all the original variables for later use */
+////			int argPos = -1;
+//			List *ruleArgs = NIL;
+////			int rNumGoals = LIST_LENGTH(r->body);
+////
+////			FOREACH(DLAtom,a,r->body)
+////			{
+////				Node *atom = (Node *) a;
+////
+////				if(isA(atom,DLAtom))
+////				{
+////					argPos++;
+////
+////					if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
+////							|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
+////					{
+////						FOREACH(DLNode,arg,a->args)
+////						{
+////							DLVar *v = (DLVar *) arg;
+////
+////							if (!searchListNode(ruleArgs, (Node *) arg) && v->dt != DT_BOOL)
+////								ruleArgs = appendToTailOfList(ruleArgs,
+////										copyObject(arg));
+////						}
+////					}
+////				}
+////			}
+//
+//			FOREACH(Node,n,r->head->args)
+//			{
+////				if (!searchListNode(ruleArgs, n))
+////				{
+//				if(isA(n, Constant))
+//				{
+//					ruleArgs = appendToTailOfList(ruleArgs, n);
+//				}
+//				else
+//				{
+//					if(isA(n, DLVar))
+//					{
+//						DLVar *v = (DLVar *) n;
+//
+//						if(v->dt != DT_BOOL)
+//							ruleArgs = appendToTailOfList(ruleArgs, v);
+//					}
+//				}
+////				}
+//			}
+//
+//			DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//			char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//					ruleWon ? "_WON" : "_LOST");
+//			char *ruleRel = CONCAT_STRINGS(
+//					CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+//					ruleWon ? "_WON" : "_LOST");
+//			int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//			int j = 1;
+//			char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//					strlen(NON_LINKED_POSTFIX));
+//
+//			List *boolArgs = removeVars(r->head->args,ruleArgs);
+//			DEBUG_LOG("boolArgs for rule:%s", exprToSQL((Node * ) boolArgs));
+//
+////			for(int boolPos = 0; boolPos < LIST_LENGTH(boolArgs); boolPos++)
+////			{
+////				List *newArgs = copyObject(r->head->args);
+////				Node *n = (Node *) getNthOfListP(newArgs, LIST_LENGTH(ruleArgs) + boolPos);
+////				newArgs = replaceNode(newArgs,
+////						   getNthOfListP(newArgs, LIST_LENGTH(ruleArgs) + boolPos),
+////						   isA(n,Operator) ? createConstBool(TRUE) : createConstBool(FALSE));
+//
+//				// head -> rule_i
+//				Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel, copyObject(origAtom->args));
+//				Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
+//	//					copyObject(
+//	//								removeVars(r->head->args,
+//	//										removeVars(r->head->args, ruleArgs))));
+//				DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
+//				moveRules = appendToTailOfList(moveRules, moveRule);
+////			}
+//
+//
+//			// filter out neg head atom for answer relation before creating move rules
+//			int atPos = 0;
+//			List *newRuleBody = NIL;
+//
+//			if (!ruleWon)
+//			{
+//				FOREACH(DLAtom,a,r->body)
+//				{
+//					if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == 0)
+//					{
+//						if (atPos < LIST_LENGTH(r->body) - 1)
+//							newRuleBody = appendToTailOfList(newRuleBody,a);
+//					}
+//					else
+//					{
+//						newRuleBody = appendToTailOfList(newRuleBody,a);
+//					}
+//
+//					atPos++;
+//				}
+//			}
+//			else
+//			{
+//				newRuleBody = copyObject(r->body);
+//			}
+//
+//			// rule_i -> goal_i_j -> posR/negR -> posR
+//			FOREACH(DLAtom,a,newRuleBody)
+//			{
+//				// filter out boolean args before creating move rules
+//				List *woBoolArgs = NIL;
+//				List *argsForMoves = NIL;
+//				List *boolArgs = NIL;
+//				boolean isNegVar = FALSE;
+//
+//				Node *atom = (Node *) a;
+//
+//				if(isA(atom,DLAtom))
+//				{
+//					FOREACH(Node,n,a->args)
+//					{
+//						if(isA(n, Constant))
+//						{
+//							woBoolArgs = appendToTailOfList(woBoolArgs,n);
+//						}
+//						else
+//						{
+//							DLVar *v = NULL;
+//
+//							if(isA(n, DLVar))
+//								v = (DLVar *) n;
+//
+//							if(isA(n,Operator))
+//							{
+//								Operator *o = (Operator *) n;
+//								v = (DLVar *) getHeadOfListP(o->args);
+//							}
+//
+//							if(v != NULL)
+//							{
+//								if (v->dt != DT_BOOL)
+//									woBoolArgs = appendToTailOfList(woBoolArgs,v);
+//								else
+//									boolArgs = appendToTailOfList(boolArgs,v);
+//							}
+//						}
+//					}
+////				}
+////
+////				if(isA(atom,DLAtom) && !LIST_EMPTY(boolArgs))
+////				{
+//					ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//					DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
+//
+//					char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+//							ruleWon ? "_WON" : "_LOST");
+//					char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_WON" : "_LOST");
+//					char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//							ruleWon ? "_LOST" : "_WON");
+//
+//					argsForMoves = copyObject(r->head->args);
+//
+//					if (ruleWon && a->negated)
+//						isNegVar = TRUE;
+//
+//					if (!ruleWon && !LIST_EMPTY(boolArgs))
+//					{
+////						Node *n = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+////						argsForMoves = replaceNode(argsForMoves,
+////												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+////												   isA(n,Operator) ? createConstBool(TRUE): createConstBool(FALSE));
+//
+//						// check if it is a negated atom
+//						Node *negVar = (Node *) getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j);
+//
+//						if(isA(negVar,Operator))
+//						{
+//							Operator *o = (Operator *) negVar;
+//
+//							if(streq(o->name,"not"))
+//								isNegVar = TRUE;
+//						}
+//
+//						// set the corresponding Boolean variable to FALSE
+//						argsForMoves = replaceNode(argsForMoves,
+//												   getNthOfListP(argsForMoves, LIST_LENGTH(ruleArgs)-1+j),
+//												   createConstBool(FALSE));
+//					}
+//
+//					if(ruleWon || (!ruleWon && !LIST_EMPTY(boolArgs)))
+//					{
+//						// rule -> goal
+//						Node *lExpr = createSkolemExpr(GP_NODE_RULE, ruleRel, copyObject(ruleArgs));
+//	//	                                	removeVars(r->head->args,
+//	//	                                        removeVars(r->head->args, ruleArgs))));
+//						Node *rExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
+//
+//						DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+//						moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//						// goal -> tuple
+//						lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel, copyObject(woBoolArgs));
+//						rExpr = createSkolemExpr(GP_NODE_TUPLE, isNegVar ? negAtomRel : atomRel, copyObject(woBoolArgs));
+//
+//						moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, argsForMoves);
+//						moveRules = appendToTailOfList(moveRules, moveRule);
+//					}
+//				}
+//
+//				DEBUG_LOG("created new move rule for head -> rule");
+//				j++;
+//			}
+//		}
+//	}
+//	else
+//	{
+//	    int checkPos = 0;
+//	    int ruleIdPos = 0;
+//	    char *bName = NULL;
+//
+//	    List *newBoolArgs = NIL;
+//	    List *collectRuleId = NIL;
+//        List *negIdbs = NIL;
+//
+//        DLVar* createBoolArgs;
+//
+//
+//	    FOREACH(DLRule,r,unLinkedRules)
+//	    {
+//	        boolean ruleWon = DL_HAS_PROP(r->head,DL_WON)
+//	        		|| DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//	        ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//	        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//            // to compare orig atom without properties
+//            DLAtom *copiedOrig = copyObject(origAtom);
+//            copiedOrig->n.properties = NULL;
+//
+//            boolean onlyConst = TRUE;
+//
+//            FOREACH(Node,n,copiedOrig->args)
+//            {
+//            	if(isA(n,DLVar))
+//            	{
+//            		onlyConst = FALSE;
+//            	}
+//            }
+//
+//	        // Collecting all the original variables for later use
+//	        int argPos = -1;
+//	        int rNumGoals = LIST_LENGTH(r->body);
+//	        List *ruleArgs = NIL;
+//
+//	        FOREACH(DLAtom,a,r->body)
+//	        {
+//	        	Node *atom = (Node *) a;
+//
+//				if(isA(atom,DLAtom))
+//				{
+//		        	argPos++;
+//
+//	                if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
+//	                		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
+//		            {
+//		                FOREACH(DLNode,arg,a->args)
+//		                {
+//		                    if (!searchListNode(ruleArgs, (Node *) arg))
+//		                        ruleArgs = appendToTailOfList(ruleArgs,
+//		                                copyObject(arg));
+//						}
+//		            }
+//				}
+//
+//				// keep track of negated idb atom
+//				if(a->negated && DL_HAS_PROP(a, DL_IS_IDB_REL))
+//				{
+//					DLAtom *negAt = copyObject((DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM));
+//					negAt->negated = FALSE;
+//					negAt->n.properties = NULL;
+//					negIdbs = appendToTailOfList(negIdbs, negAt);
+//				}
+//	        }
+//	        DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//	        char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//	                ruleWon ? "_WON" : "_LOST");
+//	        char *ruleRel = CONCAT_STRINGS(
+//	                CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+//	                ruleWon ? "_WON" : "_LOST");
+//	        int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//	        int j = 0;
+//	        char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//	                strlen(NON_LINKED_POSTFIX));
+//
+//	        // remove over generated move rules
+//	        boolean goalChk = FALSE;
+//	        List *newRuleHeadArgs = NIL;
+//	        List *boolArgs = removeVars(r->head->args, ruleArgs);
+//
+//	        // create a list for collecting rule id
+//	        int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
+//	        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
+//	                STRING_VALUE(createConstBool(ruleWon)));
+//	        int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
+//	        collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
+//
+//	        // reset the position to check if the rule id is changed
+//	        if (LIST_LENGTH(collectRuleId) > 1)
+//	            if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
+//	                    != getNthOfListInt(collectRuleId, ruleIdPos))
+//	                checkPos = 0;
+//
+//	        // head -> rule_i
+//	        if (!ruleWon)
+//	        {
+//	            // generate boolean args with variables to reduce redundant move rules
+//	            newBoolArgs = NIL;
+//	            for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
+//	                    checkLoop++)
+//	            {
+//	                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
+//	                createBoolArgs = createDLVar(bName, DT_BOOL);
+//	                newBoolArgs = appendToTailOfList(newBoolArgs,
+//	                        copyObject(createBoolArgs));
+//	            }
+//
+//	            if (checkPos < LIST_LENGTH(boolArgs))
+//	                goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
+//
+//	            if (!goalChk && checkPos < LIST_LENGTH(boolArgs))
+//	            {
+//	                // update the boolean arguments
+//	                List *replaceBoolArgs = copyObject(newBoolArgs);
+//	                replaceBoolArgs = replaceNode(replaceBoolArgs,
+//	                        getNthOfListP(replaceBoolArgs, checkPos),
+//	                        getNthOfListP(boolArgs, checkPos));
+//
+//	                newRuleHeadArgs = removeVars(r->head->args, removeVars(r->head->args, ruleArgs));
+//	                for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
+//	                    newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
+//	                            getNthOfListP(replaceBoolArgs, k));
+//
+//	                // do not generate move rules for failure if it is negated in the body of another rule
+//	                if(!searchListNode(negIdbs,(Node *) copiedOrig) || onlyConst)
+//	                {
+//		                Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//		                        copyObject(origAtom->args));
+//		                Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
+//		                        copyObject(
+//		                                removeVars(r->head->args,
+//		                                        removeVars(r->head->args, ruleArgs))));
+//		                DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//		                		copyObject(newRuleHeadArgs));
+//		                moveRules = appendToTailOfList(moveRules, moveRule);
+//	                }
+//	            }
+//
+//	            // create move rules for successful derivations for why-not
+//	            if(!searchListNode(boolArgs,(Node *) createConstBool(FALSE)))
+//	            {
+//	            	char *posHeadRel = CONCAT_STRINGS(strdup(origAtom->rel),"_WON");
+//					char *posRuleRel = CONCAT_STRINGS(CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),"_WON");
+//
+//		            Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, posHeadRel, copyObject(origAtom->args));
+//		            Node *rExpr = createSkolemExpr(GP_NODE_RULE, posRuleRel, copyObject(
+//                            removeVars(r->head->args,
+//                                    removeVars(r->head->args, ruleArgs))));
+//		            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, r->head->args);
+//
+//		            moveRules = appendToTailOfList(moveRules, moveRule);
+//	            }
+//	        }
+//	        else
+//	        {
+//	            Node *lExpr = createSkolemExpr(GP_NODE_TUPLE, headRel,
+//	                    copyObject(origAtom->args));
+//	            Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
+//	                    copyObject(r->head->args));
+//	            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//	                    r->head->args);
+//	            moveRules = appendToTailOfList(moveRules, moveRule);
+//	        }
+//
+//	        // rule_i -> goal_i_j -> posR/negR -> posR
+//	        int goalPos = -1;
+//
+//	        if (ruleWon ||
+//	        		(!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs)))
+//	        {
+//	            FOREACH(DLAtom,a,r->body)
+//	            {
+//	            	Node *atom = (Node *) a;
+//
+//	    			if(isA(atom,DLAtom))
+//	    			{
+//	                	goalPos++;
+//	                    //              int unruleNumGoals = LIST_LENGTH(r->body);
+//	    //                int numHeadArgs = LIST_LENGTH(r->head->args);
+//	                    boolean goalWon = FALSE;
+//	                    boolean relWon = FALSE;
+//
+//	                    // Not include the additional atom for filtering out
+//	                    if (!ruleWon && (goalPos + 1) == rNumGoals &&
+//	                    		INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched && rNumGoals > 1)
+//	                    {
+//	                        goalWon = TRUE;
+//	                    }
+//	                    else
+//	                    {
+//	                        if ((!ruleWon && checkPos == j) || ruleWon)
+//	                        {
+//	                            ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//	                            DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
+//	                                    DL_ORIG_ATOM);
+//
+//	                            char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+//	                                    ruleWon ? "_WON" : "_LOST");
+//
+//	                            // is goal won?
+//	                            if (!ruleWon)
+//	                            {
+//	                                DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
+//	                                goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
+//	                            }
+//	                            else
+//	                                goalWon = TRUE;
+//
+//	                            DEBUG_LOG("goal is %s and goal is negated %s", goalWon ? "TRUE" : "FALSE", a->negated ? "TRUE" : "FALSE");
+//
+//	                            // is tuple won?
+//	                            if ((goalWon && (!a->negated)) || ((!goalWon) && a->negated))
+//	                            {
+//	                                relWon = TRUE;
+//	                            }
+//	                            else
+//	                            {
+//	                                relWon = FALSE;
+//	                            }
+//
+//	                            char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//	                                    relWon ? "_WON" : "_LOST");
+//
+//	                            // -> posR
+//	                            if (a->negated)
+//	                            {
+//	                                if ((!goalWon && !searchListNode(negIdbs,(Node *) copiedOrig))
+//	                                		|| onlyConst || ruleWon)
+//	                                {
+//	                                    Node *lExpr = createSkolemExpr(GP_NODE_RULE,
+//	                                            ruleRel,
+//	                                            copyObject(
+//	                                                    removeVars(r->head->args,
+//	                                                            removeVars(
+//	                                                                    r->head->args,
+//	                                                                    ruleArgs))));
+//	                                    Node *rExpr = createSkolemExpr(GP_NODE_GOAL,
+//	                                            goalRel, copyObject(a->args));
+//	                                    DLRule *moveRule;
+//	                                    if (ruleWon)
+//	                                        moveRule = createMoveRule(lExpr, rExpr,
+//	                                                linkedHeadName, r->head->args);
+//	                                    else
+//	                                        moveRule = createMoveRule(lExpr, rExpr,
+//	                                                linkedHeadName,
+//	                                                copyObject(newRuleHeadArgs));
+//
+//	                                    moveRules = appendToTailOfList(moveRules,
+//	                                            moveRule);
+//
+//	                                    lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
+//	                                            copyObject(a->args));
+//
+//	                                    // check the goal predicate contains the head predicate
+//	    //                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
+//	                                    if(DL_HAS_PROP(a, DL_IS_IDB_REL))
+//	                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//	                                    	        atomRel, copyObject(a->args));
+//	                                    else
+//	                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//	                                    			atomRel, copyObject(a->args));
+//
+//	                                    if (ruleWon)
+//	                                        moveRule = createMoveRule(lExpr, rExpr,
+//	                                                linkedHeadName, r->head->args);
+//	                                    else
+//	                                        moveRule = createMoveRule(lExpr, rExpr,
+//	                                                linkedHeadName,
+//	                                                copyObject(newRuleHeadArgs));
+//
+//	                                    moveRules = appendToTailOfList(moveRules,
+//	                                            moveRule);
+//	                                }
+//	                            }
+//	                            // -> posR
+//	                            else
+//	                            {
+//	                                if ((!goalWon && !searchListNode(negIdbs,(Node *) copiedOrig))
+//	                                		|| onlyConst || ruleWon)
+//	                                {
+//	                                    Node *lExpr;
+//	                                    if (!ruleWon)
+//	                                        lExpr =
+//	                                                createSkolemExpr(GP_NODE_RULE,
+//	                                                        ruleRel,
+//	                                                        copyObject(
+//	                                                                removeVars(
+//	                                                                        r->head->args,
+//	                                                                        removeVars(
+//	                                                                                r->head->args,
+//	                                                                                ruleArgs))));
+//	                                    else
+//	                                        lExpr = createSkolemExpr(GP_NODE_RULE,
+//	                                                ruleRel, copyObject(r->head->args));
+//
+//	                                    Node *rExpr = createSkolemExpr(GP_NODE_GOAL,
+//	                                            goalRel, copyObject(a->args));
+//
+//	                                    DLRule *moveRule;
+//	                                    if (ruleWon)
+//	                                        moveRule = createMoveRule(lExpr, rExpr,
+//	                                                linkedHeadName, r->head->args);
+//	                                    else
+//	                                        moveRule = createMoveRule(lExpr, rExpr,
+//	                                                linkedHeadName,
+//	                                                copyObject(newRuleHeadArgs));
+//
+//	                                    moveRules = appendToTailOfList(moveRules,
+//	                                            moveRule);
+//
+//	                                    lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
+//	                                            copyObject(a->args));
+//
+//	                                    char *Rel = CONCAT_STRINGS(strdup(origAtom->rel),
+//	                                    				ruleWon ? "_WON" : "_LOST");
+//
+//	                                    // check the goal predicate contains the head predicate
+//	    //                                if(idbHeadPred != NULL && strstr(a->rel,idbHeadPred) != NULL)
+//	                                    if(DL_HAS_PROP(a, DL_IS_IDB_REL))
+//	                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//	                                    			Rel, copyObject(a->args));
+//	                                    else
+//	                                    	rExpr = createSkolemExpr(GP_NODE_TUPLE,
+//	                                    			Rel, copyObject(a->args));
+//
+//	                                    if (ruleWon)
+//	                                        moveRule = createMoveRule(lExpr, rExpr,
+//	                                                linkedHeadName, r->head->args);
+//	                                    else
+//	                                        moveRule = createMoveRule(lExpr, rExpr,
+//	                                                linkedHeadName,
+//	                                                copyObject(newRuleHeadArgs));
+//
+//	                                    moveRules = appendToTailOfList(moveRules,
+//	                                            moveRule);
+//	                                }
+//	                            }
+//	                        }
+//	                    }
+//	                    DEBUG_LOG("created new move rule for head -> rule");
+//	                    j++;
+//	    			}
+//	            }
+//	            checkPos++;
+//	        }
+//
+//	        // create edges of subgraphs for double negation
+//	        if(!ruleWon && !searchListNode(boolArgs,(Node *) createConstBool(FALSE)))
+//            {
+//	        	int g = 0;
+//	        	FOREACH(Node,n,r->body)
+//				{
+//					if(isA(n,DLAtom))
+//					{
+//						DLAtom *a = (DLAtom *) n;
+//						boolean relStatus = a->negated ? FALSE : TRUE;
+//
+//						// rule -> goal_i^j
+//						char *posRuleRel = CONCAT_STRINGS(CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),"_WON");
+//			        	char *posGoalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(g), "_WON");
+//
+//		                Node *lExpr = createSkolemExpr(GP_NODE_RULE,posRuleRel,
+//		                		copyObject(removeVars(r->head->args,removeVars(r->head->args,ruleArgs))));
+//		                Node *rExpr = createSkolemExpr(GP_NODE_GOAL,posGoalRel,copyObject(a->args));
+//
+//		                DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, copyObject(r->head->args));
+//		                moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//		                // goal_i^j -> tuple
+//		                DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a, DL_ORIG_ATOM);
+//		                char *posRel = CONCAT_STRINGS(strdup(origAtom->rel), relStatus ? "_WON" : "_LOST");
+//
+//		                lExpr = createSkolemExpr(GP_NODE_GOAL,posGoalRel,copyObject(a->args));
+//		                rExpr = createSkolemExpr(GP_NODE_TUPLE,posRel,copyObject(a->args));
+//
+//		                moveRule = createMoveRule(lExpr, rExpr, linkedHeadName, copyObject(r->head->args));
+//						moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//		                g++;
+//					}
+//				}
+//            }
+//
+//	        ruleIdPos++;
+//	    }
+//	}
+//
+//    return moveRules;
+//}
+//
+//static List*
+//createGPMoveRules(int getMatched, List* negedbRules,
+//        List* edbRules, List* unLinkedRules)
+//{
+//    List *moveRules = NIL;
+//    // create rules for move relation
+//    // for edb-help rule
+//    FOREACH(DLRule,e,negedbRules)
+//    {
+//        boolean ruleWon = DL_HAS_PROP(e->head,
+//                DL_WON) || DL_HAS_PROP(e->head,DL_UNDER_NEG_WON);
+//
+//        ASSERT(DL_HAS_PROP(e->head,DL_ORIG_ATOM));
+//        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(e->head, DL_ORIG_ATOM);
+//        char *rel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                ruleWon ? "_WON" : "_LOST");
+//        char *negRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                ruleWon ? "_LOST" : "_WON");
+//        char *headName = strRemPostfix(strdup(e->head->rel),
+//                strlen(NON_LINKED_POSTFIX));
+//
+//        if (!ruleWon)
+//        {
+//
+//            Node *lExpr = createSkolemExpr(GP_NODE_NEGREL, negRel,
+//                    e->head->args);
+//            Node *rExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
+//            DLRule *moveRule = createMoveRule(lExpr, rExpr, headName,
+//                    e->head->args);
+//            moveRules = appendToTailOfList(moveRules, moveRule);
+//        }
+//    }
+//    // for each edb rule create two move entries
+//    FOREACH(DLRule,e,edbRules)
+//    {
+//        boolean ruleWon = DL_HAS_PROP(e->head,
+//                DL_WON) || DL_HAS_PROP(e->head,DL_UNDER_NEG_WON);
+//
+//        ASSERT(DL_HAS_PROP(e->head,DL_ORIG_ATOM));
+//        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(e->head, DL_ORIG_ATOM);
+//
+//        char *rel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                ruleWon ? "_WON" : "_LOST");
+//        char *negRel = CONCAT_STRINGS("r", strdup(origAtom->rel),
+//                ruleWon ? "_LOST" : "_WON");
+//        char *headName = strRemPostfix(strdup(e->head->rel),
+//                strlen(NON_LINKED_POSTFIX));
+//
+//        // if is won then we
+//        if (ruleWon)
+//        {
+//            Node *lExpr = createSkolemExpr(GP_NODE_POSREL, rel, e->head->args);
+//            Node *rExpr = createSkolemExpr(GP_NODE_EDB, negRel, e->head->args);
+//            DLRule *moveRule = createMoveRule(lExpr, rExpr, headName,
+//                    e->head->args);
+//            moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//            DEBUG_LOG("NEW MOVE RULE: negR-atom -> R-atom -> R: %s", headName);
+//
+//        }
+//    }
+//    // for each rule_i do head -> rule_i, rule_i -> goal_i_j, goal_i_j -> posR/negR -> posR?
+//    int checkPos = 0;
+//    // To filter out unnecessary move rules (rule_i -> goal_i_j, goal_i_j -> posR/negR)int ruleId = 0;
+//    // To check rule id is changedint ruleIdPos = 0;
+//    // position in the list of rule idint ruleIdCheck = 0;
+//    char *bName = NULL;
+//    List *newBoolArgs = NIL;
+//    List *collectRuleId = NIL;
+//    DLVar* createBoolArgs;
+//    int ruleIdPos = 0;
+//    boolean filterNegHead = FALSE;
+//
+//    FOREACH(DLRule,r,unLinkedRules)
+//    {
+//        boolean ruleWon = DL_HAS_PROP(r->head,
+//                DL_WON) || DL_HAS_PROP(r->head,DL_UNDER_NEG_WON);
+//        //        boolean ruleNeg = DL_HAS_PROP(r->head,DL_UNDER_NEG_WON)
+//        //                                       || DL_HAS_PROP(r->head,DL_UNDER_NEG_LOST);
+//        ASSERT(DL_HAS_PROP(r->head, DL_ORIG_ATOM));
+//        DLAtom *origAtom = (DLAtom *) DL_GET_PROP(r->head, DL_ORIG_ATOM);
+//
+//        // Collecting all the original variables for later use
+//        int argPos = -1;
+//        List *ruleArgs = NIL;
+//        int rNumGoals = LIST_LENGTH(r->body);
+//
+//        FOREACH(DLAtom,a,r->body)
+//        {
+//        	Node *atom = (Node *) a;
+//
+//        	if(isA(atom,DLAtom))
+//        	{
+//                argPos++;
+//
+////                if (!ruleWon && (argPos + 1) == rNumGoals
+////                        && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
+////                                == getMatched && rNumGoals > 1)
+////                {
+////                    ruleArgs = copyObject(ruleArgs);
+////                }
+////                else
+//                if (ruleWon || (argPos + 1) != rNumGoals || rNumGoals <= 1
+//                		|| INT_VALUE(getDLProp((DLNode *) r, DL_RULE_ID)) != getMatched)
+//                {
+//                    FOREACH(DLNode,arg,a->args)
+//                    {
+//                        if (!searchListNode(ruleArgs, (Node *) arg))
+//                            ruleArgs = appendToTailOfList(ruleArgs,
+//                                    copyObject(arg));
+//                    }
+//                }
+//
+//                if(ruleWon)
+//                	if(a->negated && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
+//                		filterNegHead = TRUE;
+//        	}
+//        }
+//        //        DEBUG_LOG("List Length:%d", LIST_LENGTH(r->body));
+//        DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
+//
+//        char *negHeadRel = CONCAT_STRINGS(strdup(origAtom->rel), "_WON");
+//        char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//                ruleWon ? "_WON" : "_LOST");
+//        char *ruleRel = CONCAT_STRINGS(
+//                CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
+//                !ruleWon ? "_WON" : "_LOST");
+//        int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
+//        int j = 0;
+//        char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
+//                strlen(NON_LINKED_POSTFIX));
+//
+//        // remove over generated move rules
+//        boolean goalChk = FALSE;
+//        List *newRuleHeadArgs = NIL;
+//        List *boolArgs = removeVars(r->head->args, ruleArgs);
+//
+//        // create a list for collecting rule id
+//        int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
+//        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
+//                STRING_VALUE(createConstBool(ruleWon)));
+//        int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
+//        collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
+//
+//        // reset the position to check if the rule id is changed
+//        if (LIST_LENGTH(collectRuleId) > 1)
+//            if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
+//                    != getNthOfListInt(collectRuleId, ruleIdPos))
+//                checkPos = 0;
+//
+//        // head -> rule_i
+//        if (!ruleWon)
+//        {
+//            // generate boolean args with variables to reduce redundant move rules
+//            newBoolArgs = NIL;
+//            for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
+//                    checkLoop++)
+//            {
+//                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
+//                createBoolArgs = createDLVar(bName, DT_BOOL);
+//                newBoolArgs = appendToTailOfList(newBoolArgs,
+//                        copyObject(createBoolArgs));
+//            }
+//
+//            if (checkPos < LIST_LENGTH(boolArgs))
+//                goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
+//
+//            if (!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
+//            {
+//                // update the boolean arguments
+//                List *replaceBoolArgs = copyObject(newBoolArgs);
+//                replaceBoolArgs = replaceNode(replaceBoolArgs,
+//                        getNthOfListP(replaceBoolArgs, checkPos),
+//                        getNthOfListP(boolArgs, checkPos));
+//
+//                newRuleHeadArgs = removeVars(r->head->args,
+//                        removeVars(r->head->args, ruleArgs));
+//                for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
+//                    newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
+//                            getNthOfListP(replaceBoolArgs, k));
+//
+//				Node *lExpr;
+//				Node *rExpr;
+//				DLRule *moveRule;
+//
+//				if(!filterNegHead)
+//				{
+//					lExpr = createSkolemExpr(GP_NODE_NEGREL, negHeadRel,
+//							copyObject(origAtom->args));
+//					rExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+//							copyObject(origAtom->args));
+//					moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//							copyObject(newRuleHeadArgs));
+//					moveRules = appendToTailOfList(moveRules, moveRule);
+//				}
+//
+//				lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+//						copyObject(origAtom->args));
+//				rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
+//						copyObject(
+//								removeVars(r->head->args,
+//										removeVars(r->head->args, ruleArgs))));
+//				moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//						copyObject(newRuleHeadArgs));
+//				moveRules = appendToTailOfList(moveRules, moveRule);
+//
+//            }
+//        }
+//        else
+//        {
+//            Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
+//                    copyObject(origAtom->args));
+//            Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
+//                    copyObject(r->head->args));
+//            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
+//                    r->head->args);
+//            moveRules = appendToTailOfList(moveRules, moveRule);
+//        }
+//
+//        // rule_i -> goal_i_j -> posR/negR -> posR
+//        int goalPos = -1;
+//
+//        if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
+//                || ruleWon)
+//        {
+//            FOREACH(DLAtom,a,r->body)
+//            {
+//            	Node *atom = (Node *) a;
+//
+//            	if(isA(atom,DLAtom))
+//            	{
+//            		goalPos++;
+////            		int unruleNumGoals = LIST_LENGTH(r->body);
+////            		int numHeadArgs = LIST_LENGTH(r->head->args);
+//					boolean goalWon = FALSE;
+//
+//					// Not include the additional atom for filtering out
+//					if (!ruleWon && (goalPos + 1) == rNumGoals
+//							&& INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
+//									== getMatched && rNumGoals > 1)
+//					{
+//						goalWon = TRUE;
+//					}
+//					else
+//					{
+//						if ((!ruleWon && checkPos == j) || ruleWon)
+//						{
+//							ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
+//							DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
+//									DL_ORIG_ATOM);
+//
+//							char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
+//									ruleWon ? "_WON" : "_LOST");
+//							char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//									ruleWon ? "_WON" : "_LOST");
+//							char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
+//									!ruleWon ? "_WON" : "_LOST");
+//							//            char *rel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_WON" : "_LOST");
+//							//            char *negRel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_LOST" : "_WON");
+//
+//							if (!ruleWon)
+//							{
+//								DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
+//								goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
+//
+//	//                        	if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
+//	//                            {
+//	//                                if (goalPos != rNumGoals - 1)
+//	//                                    goalWon = BOOL_VALUE(
+//	//                                            getNthOfListP(r->head->args,
+//	//                                                    numHeadArgs - (rNumGoals - 1) + goalPos));
+//	//                            }
+//	//                            else
+//	//                                goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - rNumGoals + goalPos));
+//							}
+//
+//							// -> posR
+//							if (a->negated)
+//							{
+//								if (!goalWon)
+//								{
+//									Node *lExpr = createSkolemExpr(GP_NODE_RULE,
+//											ruleRel,
+//											copyObject(
+//													removeVars(r->head->args,
+//															removeVars(
+//																	r->head->args,
+//																	ruleArgs))));
+//									Node *rExpr = createSkolemExpr(GP_NODE_GOAL,
+//											goalRel, copyObject(a->args));
+//									DLRule *moveRule;
+//									if (ruleWon)
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName, r->head->args);
+//									else
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName,
+//												copyObject(newRuleHeadArgs));
+//
+//									moveRules = appendToTailOfList(moveRules,
+//											moveRule);
+//
+//									lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
+//											copyObject(a->args));
+//									rExpr = createSkolemExpr(GP_NODE_POSREL,
+//											negAtomRel, copyObject(a->args));
+//									if (ruleWon)
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName, r->head->args);
+//									else
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName,
+//												copyObject(newRuleHeadArgs));
+//
+//									moveRules = appendToTailOfList(moveRules,
+//											moveRule);
+//								}
+//							}
+//							// -> negR -> posR
+//							else
+//							{
+//								if (!goalWon || ruleWon)
+//								{
+//									Node *lExpr;
+//									if (!ruleWon)
+//										lExpr =
+//												createSkolemExpr(GP_NODE_RULE,
+//														ruleRel,
+//														copyObject(
+//																removeVars(
+//																		r->head->args,
+//																		removeVars(
+//																				r->head->args,
+//																				ruleArgs))));
+//									else
+//										lExpr = createSkolemExpr(GP_NODE_RULE,
+//												ruleRel, copyObject(r->head->args));
+//
+//									Node *rExpr = createSkolemExpr(GP_NODE_GOAL,
+//											goalRel, copyObject(a->args));
+//									DLRule *moveRule;
+//									if (ruleWon)
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName, r->head->args);
+//									else
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName,
+//												copyObject(newRuleHeadArgs));
+//
+//									moveRules = appendToTailOfList(moveRules,
+//											moveRule);
+//
+//									lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
+//											copyObject(a->args));
+//									rExpr = createSkolemExpr(GP_NODE_NEGREL,
+//											negAtomRel, copyObject(a->args));
+//									if (ruleWon)
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName, r->head->args);
+//									else
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName,
+//												copyObject(newRuleHeadArgs));
+//
+//									moveRules = appendToTailOfList(moveRules,
+//											moveRule);
+//
+//									lExpr = createSkolemExpr(GP_NODE_NEGREL,
+//											negAtomRel, copyObject(a->args));
+//									rExpr = createSkolemExpr(GP_NODE_POSREL,
+//											atomRel, copyObject(a->args));
+//									if (ruleWon)
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName, r->head->args);
+//									else
+//										moveRule = createMoveRule(lExpr, rExpr,
+//												linkedHeadName,
+//												copyObject(newRuleHeadArgs));
+//
+//									moveRules = appendToTailOfList(moveRules,
+//											moveRule);
+//								}
+//							}
+//						}
+//					}
+//					DEBUG_LOG("created new move rule for head -> rule");
+//					j++;
+//            	}
+//            }
+//            checkPos++;
+//        }
+//        ruleIdPos++;
+//    }
+//
+//    return moveRules;
+//}
 
-                if(ruleWon)
-                	if(a->negated && INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
-                		filterNegHead = TRUE;
-        	}
-        }
-        //        DEBUG_LOG("List Length:%d", LIST_LENGTH(r->body));
-        DEBUG_LOG("args for rule:%s", exprToSQL((Node * ) ruleArgs));
 
-        char *negHeadRel = CONCAT_STRINGS(strdup(origAtom->rel), "_WON");
-        char *headRel = CONCAT_STRINGS(strdup(origAtom->rel),
-                ruleWon ? "_WON" : "_LOST");
-        char *ruleRel = CONCAT_STRINGS(
-                CONST_TO_STRING(DL_GET_PROP(r,DL_RULE_ID)),
-                !ruleWon ? "_WON" : "_LOST");
-        int i = INT_VALUE(DL_GET_PROP(r,DL_RULE_ID));
-        int j = 0;
-        char *linkedHeadName = strRemPostfix(strdup(r->head->rel),
-                strlen(NON_LINKED_POSTFIX));
-
-        // remove over generated move rules
-        boolean goalChk = FALSE;
-        List *newRuleHeadArgs = NIL;
-        List *boolArgs = removeVars(r->head->args, ruleArgs);
-
-        // create a list for collecting rule id
-        int ruleId = INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID));
-        char *newRuleId = CONCAT_STRINGS(gprom_itoa(ruleId),
-                STRING_VALUE(createConstBool(ruleWon)));
-        int ruleIdCheck = INT_VALUE(createConstString(newRuleId));
-        collectRuleId = appendToTailOfListInt(collectRuleId, ruleIdCheck);
-
-        // reset the position to check if the rule id is changed
-        if (LIST_LENGTH(collectRuleId) > 1)
-            if (getNthOfListInt(collectRuleId, ruleIdPos - 1)
-                    != getNthOfListInt(collectRuleId, ruleIdPos))
-                checkPos = 0;
-
-        // head -> rule_i
-        if (!ruleWon)
-        {
-            // generate boolean args with variables to reduce redundant move rules
-            newBoolArgs = NIL;
-            for (int checkLoop = 0; checkLoop < LIST_LENGTH(boolArgs);
-                    checkLoop++)
-            {
-                bName = CONCAT_STRINGS("BL", gprom_itoa(checkLoop));
-                createBoolArgs = createDLVar(bName, DT_BOOL);
-                newBoolArgs = appendToTailOfList(newBoolArgs,
-                        copyObject(createBoolArgs));
-            }
-
-            if (checkPos < LIST_LENGTH(boolArgs))
-                goalChk = BOOL_VALUE(getNthOfListP(boolArgs, checkPos));
-
-            if (!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-            {
-                // update the boolean arguments
-                List *replaceBoolArgs = copyObject(newBoolArgs);
-                replaceBoolArgs = replaceNode(replaceBoolArgs,
-                        getNthOfListP(replaceBoolArgs, checkPos),
-                        getNthOfListP(boolArgs, checkPos));
-
-                newRuleHeadArgs = removeVars(r->head->args,
-                        removeVars(r->head->args, ruleArgs));
-                for (int k = 0; k < LIST_LENGTH(replaceBoolArgs); k++)
-                    newRuleHeadArgs = appendToTailOfList(newRuleHeadArgs,
-                            getNthOfListP(replaceBoolArgs, k));
-
-				Node *lExpr;
-				Node *rExpr;
-				DLRule *moveRule;
-
-				if(!filterNegHead)
-				{
-					lExpr = createSkolemExpr(GP_NODE_NEGREL, negHeadRel,
-							copyObject(origAtom->args));
-					rExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
-							copyObject(origAtom->args));
-					moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-							copyObject(newRuleHeadArgs));
-					moveRules = appendToTailOfList(moveRules, moveRule);
-				}
-
-				lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
-						copyObject(origAtom->args));
-				rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
-						copyObject(
-								removeVars(r->head->args,
-										removeVars(r->head->args, ruleArgs))));
-				moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-						copyObject(newRuleHeadArgs));
-				moveRules = appendToTailOfList(moveRules, moveRule);
-
-            }
-        }
-        else
-        {
-            Node *lExpr = createSkolemExpr(GP_NODE_POSREL, headRel,
-                    copyObject(origAtom->args));
-            Node *rExpr = createSkolemExpr(GP_NODE_RULE, ruleRel,
-                    copyObject(r->head->args));
-            DLRule *moveRule = createMoveRule(lExpr, rExpr, linkedHeadName,
-                    r->head->args);
-            moveRules = appendToTailOfList(moveRules, moveRule);
-        }
-
-        // rule_i -> goal_i_j -> posR/negR -> posR
-        int goalPos = -1;
-
-        if ((!ruleWon && !goalChk && checkPos < LIST_LENGTH(boolArgs))
-                || ruleWon)
-        {
-            FOREACH(DLAtom,a,r->body)
-            {
-            	Node *atom = (Node *) a;
-
-            	if(isA(atom,DLAtom))
-            	{
-            		goalPos++;
-//            		int unruleNumGoals = LIST_LENGTH(r->body);
-//            		int numHeadArgs = LIST_LENGTH(r->head->args);
-					boolean goalWon = FALSE;
-
-					// Not include the additional atom for filtering out
-					if (!ruleWon && (goalPos + 1) == rNumGoals
-							&& INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID))
-									== getMatched && rNumGoals > 1)
-					{
-						goalWon = TRUE;
-					}
-					else
-					{
-						if ((!ruleWon && checkPos == j) || ruleWon)
-						{
-							ASSERT(DL_HAS_PROP(a,DL_ORIG_ATOM));
-							DLAtom *origAtom = (DLAtom *) DL_GET_PROP(a,
-									DL_ORIG_ATOM);
-
-							char *goalRel = CONCAT_STRINGS(gprom_itoa(i), "_", gprom_itoa(j),
-									ruleWon ? "_WON" : "_LOST");
-							char *atomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-									ruleWon ? "_WON" : "_LOST");
-							char *negAtomRel = CONCAT_STRINGS(strdup(origAtom->rel),
-									!ruleWon ? "_WON" : "_LOST");
-							//            char *rel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_WON" : "_LOST");
-							//            char *negRel = CONCAT_STRINGS(strdup(origAtom->rel), ruleWon ? "_LOST" : "_WON");
-
-							if (!ruleWon)
-							{
-								DEBUG_LOG("Only Boolean Args:%s", exprToSQL((Node * ) removeVars(r->head->args,ruleArgs)));
-								goalWon = BOOL_VALUE(getNthOfListP(removeVars(r->head->args,ruleArgs),goalPos));
-
-	//                        	if (INT_VALUE(getDLProp((DLNode *) r,DL_RULE_ID)) == getMatched)
-	//                            {
-	//                                if (goalPos != rNumGoals - 1)
-	//                                    goalWon = BOOL_VALUE(
-	//                                            getNthOfListP(r->head->args,
-	//                                                    numHeadArgs - (rNumGoals - 1) + goalPos));
-	//                            }
-	//                            else
-	//                                goalWon = BOOL_VALUE(getNthOfListP(r->head->args, numHeadArgs - rNumGoals + goalPos));
-							}
-
-							// -> posR
-							if (a->negated)
-							{
-								if (!goalWon)
-								{
-									Node *lExpr = createSkolemExpr(GP_NODE_RULE,
-											ruleRel,
-											copyObject(
-													removeVars(r->head->args,
-															removeVars(
-																	r->head->args,
-																	ruleArgs))));
-									Node *rExpr = createSkolemExpr(GP_NODE_GOAL,
-											goalRel, copyObject(a->args));
-									DLRule *moveRule;
-									if (ruleWon)
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName, r->head->args);
-									else
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName,
-												copyObject(newRuleHeadArgs));
-
-									moveRules = appendToTailOfList(moveRules,
-											moveRule);
-
-									lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
-											copyObject(a->args));
-									rExpr = createSkolemExpr(GP_NODE_POSREL,
-											negAtomRel, copyObject(a->args));
-									if (ruleWon)
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName, r->head->args);
-									else
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName,
-												copyObject(newRuleHeadArgs));
-
-									moveRules = appendToTailOfList(moveRules,
-											moveRule);
-								}
-							}
-							// -> negR -> posR
-							else
-							{
-								if (!goalWon || ruleWon)
-								{
-									Node *lExpr;
-									if (!ruleWon)
-										lExpr =
-												createSkolemExpr(GP_NODE_RULE,
-														ruleRel,
-														copyObject(
-																removeVars(
-																		r->head->args,
-																		removeVars(
-																				r->head->args,
-																				ruleArgs))));
-									else
-										lExpr = createSkolemExpr(GP_NODE_RULE,
-												ruleRel, copyObject(r->head->args));
-
-									Node *rExpr = createSkolemExpr(GP_NODE_GOAL,
-											goalRel, copyObject(a->args));
-									DLRule *moveRule;
-									if (ruleWon)
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName, r->head->args);
-									else
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName,
-												copyObject(newRuleHeadArgs));
-
-									moveRules = appendToTailOfList(moveRules,
-											moveRule);
-
-									lExpr = createSkolemExpr(GP_NODE_GOAL, goalRel,
-											copyObject(a->args));
-									rExpr = createSkolemExpr(GP_NODE_NEGREL,
-											negAtomRel, copyObject(a->args));
-									if (ruleWon)
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName, r->head->args);
-									else
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName,
-												copyObject(newRuleHeadArgs));
-
-									moveRules = appendToTailOfList(moveRules,
-											moveRule);
-
-									lExpr = createSkolemExpr(GP_NODE_NEGREL,
-											negAtomRel, copyObject(a->args));
-									rExpr = createSkolemExpr(GP_NODE_POSREL,
-											atomRel, copyObject(a->args));
-									if (ruleWon)
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName, r->head->args);
-									else
-										moveRule = createMoveRule(lExpr, rExpr,
-												linkedHeadName,
-												copyObject(newRuleHeadArgs));
-
-									moveRules = appendToTailOfList(moveRules,
-											moveRule);
-								}
-							}
-						}
-					}
-					DEBUG_LOG("created new move rule for head -> rule");
-					j++;
-            	}
-            }
-            checkPos++;
-        }
-        ruleIdPos++;
-    }
-
-    return moveRules;
-}
 
 /*
  * Rewrite program based on adornments created when statically solving the game for the program.
@@ -3412,7 +3415,7 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 	Set *adornedEDBAtoms = NODESET();
 	Set *adornedEDBHelpAtoms = NODESET();
     HashMap *idbAdToRules = NEW_MAP(Node,Node);
-    char *fmt = STRING_VALUE(DL_GET_PROP((DLNode *) solvedProgram, DL_PROV_FORMAT));
+//    char *fmt = STRING_VALUE(DL_GET_PROP((DLNode *) solvedProgram, DL_PROV_FORMAT));
     result->rules = copyObject(solvedProgram->rules);
     DLVar *createArgs;
     DLRule *ruleRule;
@@ -4755,104 +4758,104 @@ rewriteSolvedProgram (DLProgram *solvedProgram)
 			datalogToOverviewString((Node *) negedbRules),
 			datalogToOverviewString((Node *) edbRules));
 
-    /* ************************************************************ */
-    // create rules for move relation
-    if (streq(fmt,DL_PROV_FORMAT_GP))
-    {
-        moveRules = createGPMoveRules(getMatched, negedbRules, edbRules,
-                unLinkedRules);
-    }
-    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_ONLY)) // Lin(X) semiring
-    {
-        moveRules = createTupleOnlyGraphMoveRules(getMatched, negedbRules, edbRules,
-                        unLinkedRules);
-    }
-    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_RULE_TUPLE)) // Trio(X) semiring
-    {
-        moveRules = createTupleRuleTupleGraphMoveRules(getMatched, negedbRules, edbRules,
-                        unLinkedRules);
-    }
-    else if (streq(fmt, DL_PROV_FORMAT_GP_REDUCED)) // provenance graphs
-    {
-        moveRules = createGPReducedMoveRules(getMatched, negedbRules, edbRules,
-                        unLinkedRules);
-    }
-    else if (streq(fmt, DL_PROV_FORMAT_HEAD_RULE_EDB)) // Trio(X) semiring with rule info
-    {
-        moveRules = createHeadRuleEdbGraphMoveRules(getMatched, negedbRules, edbRules,
-                        unLinkedRules);
-    }
-    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE)) // N[X] semiring
-    {
-        moveRules = createTupleRuleGoalTupleGraphMoveRules(getMatched, negedbRules, edbRules,
-                        unLinkedRules);
-    }
-    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED)) // B[X] semiring
-	{
-    	FOREACH(DLRule,r,unLinkedRules)
-    	{
-    		int i = 0;
-    		FOREACH(Node,n,r->head->args)
-			{
-    	    	List *compArgs = NIL;
-
-				if(!isA(n,Constant))
-				{
-					compArgs = appendToTailOfList(compArgs,n);
-
-					// TODO: adding the comparison might be limited in some cases only
-					// e.g., 3hop(X,Y) :- hop(X,A), hop(A,B), hop(B,Y).
-					for(int j = i+1; j < LIST_LENGTH(r->head->args); j++)
-					{
-						if(LIST_LENGTH(compArgs) == 2)
-							compArgs = removeFromTail(compArgs);
-
-						compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
-
-						DLComparison *comp = makeNode(DLComparison);
-						comp->opExpr = createOpExpr(">=",compArgs);
-						r->body = appendToTailOfList(r->body,comp);
-					}
-				}
-				i++;
-			}
-    	}
-		moveRules = createTupleRuleGoalTupleGraphMoveRules(getMatched, negedbRules, edbRules,
-						unLinkedRules);
-	}
-    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED)) // Why(X) semiring
-	{
-    	FOREACH(DLRule,r,unLinkedRules)
-    	{
-    		int i = 0;
-    		FOREACH(Node,n,r->head->args)
-			{
-    	    	List *compArgs = NIL;
-
-				if(!isA(n,Constant))
-				{
-					compArgs = appendToTailOfList(compArgs,n);
-
-					// TODO: adding the comparison might be limited in some cases only
-					// e.g., 3hop(X,Y) :- hop(X,A), hop(A,B), hop(B,Y).
-					for(int j = i+1; j < LIST_LENGTH(r->head->args); j++)
-					{
-						if(LIST_LENGTH(compArgs) == 2)
-							compArgs = removeFromTail(compArgs);
-
-						compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
-
-						DLComparison *comp = makeNode(DLComparison);
-						comp->opExpr = createOpExpr(">=",compArgs);
-						r->body = appendToTailOfList(r->body,comp);
-					}
-				}
-				i++;
-			}
-    	}
-    	moveRules = createTupleRuleTupleGraphMoveRules(getMatched, negedbRules, edbRules,
-						unLinkedRules);
-	}
+//    /* ************************************************************ */
+//    // create rules for move relation
+//    if (streq(fmt,DL_PROV_FORMAT_GP))
+//    {
+//        moveRules = createGPMoveRules(getMatched, negedbRules, edbRules,
+//                unLinkedRules);
+//    }
+//    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_ONLY)) // Lin(X) semiring
+//    {
+//        moveRules = createTupleOnlyGraphMoveRules(getMatched, negedbRules, edbRules,
+//                        unLinkedRules);
+//    }
+//    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_RULE_TUPLE)) // Trio(X) semiring
+//    {
+//        moveRules = createTupleRuleTupleGraphMoveRules(getMatched, negedbRules, edbRules,
+//                        unLinkedRules);
+//    }
+//    else if (streq(fmt, DL_PROV_FORMAT_GP_REDUCED)) // provenance graphs
+//    {
+//        moveRules = createGPReducedMoveRules(getMatched, negedbRules, edbRules,
+//                        unLinkedRules);
+//    }
+//    else if (streq(fmt, DL_PROV_FORMAT_HEAD_RULE_EDB)) // Trio(X) semiring with rule info
+//    {
+//        moveRules = createHeadRuleEdbGraphMoveRules(getMatched, negedbRules, edbRules,
+//                        unLinkedRules);
+//    }
+//    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE)) // N[X] semiring
+//    {
+//        moveRules = createTupleRuleGoalTupleGraphMoveRules(getMatched, negedbRules, edbRules,
+//                        unLinkedRules);
+//    }
+//    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_RULE_GOAL_TUPLE_REDUCED)) // B[X] semiring
+//	{
+//    	FOREACH(DLRule,r,unLinkedRules)
+//    	{
+//    		int i = 0;
+//    		FOREACH(Node,n,r->head->args)
+//			{
+//    	    	List *compArgs = NIL;
+//
+//				if(!isA(n,Constant))
+//				{
+//					compArgs = appendToTailOfList(compArgs,n);
+//
+//					// TODO: adding the comparison might be limited in some cases only
+//					// e.g., 3hop(X,Y) :- hop(X,A), hop(A,B), hop(B,Y).
+//					for(int j = i+1; j < LIST_LENGTH(r->head->args); j++)
+//					{
+//						if(LIST_LENGTH(compArgs) == 2)
+//							compArgs = removeFromTail(compArgs);
+//
+//						compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
+//
+//						DLComparison *comp = makeNode(DLComparison);
+//						comp->opExpr = createOpExpr(">=",compArgs);
+//						r->body = appendToTailOfList(r->body,comp);
+//					}
+//				}
+//				i++;
+//			}
+//    	}
+//		moveRules = createTupleRuleGoalTupleGraphMoveRules(getMatched, negedbRules, edbRules,
+//						unLinkedRules);
+//	}
+//    else if (streq(fmt, DL_PROV_FORMAT_TUPLE_RULE_TUPLE_REDUCED)) // Why(X) semiring
+//	{
+//    	FOREACH(DLRule,r,unLinkedRules)
+//    	{
+//    		int i = 0;
+//    		FOREACH(Node,n,r->head->args)
+//			{
+//    	    	List *compArgs = NIL;
+//
+//				if(!isA(n,Constant))
+//				{
+//					compArgs = appendToTailOfList(compArgs,n);
+//
+//					// TODO: adding the comparison might be limited in some cases only
+//					// e.g., 3hop(X,Y) :- hop(X,A), hop(A,B), hop(B,Y).
+//					for(int j = i+1; j < LIST_LENGTH(r->head->args); j++)
+//					{
+//						if(LIST_LENGTH(compArgs) == 2)
+//							compArgs = removeFromTail(compArgs);
+//
+//						compArgs = appendToTailOfList(compArgs,(Node *) getNthOfListP(r->head->args,j));
+//
+//						DLComparison *comp = makeNode(DLComparison);
+//						comp->opExpr = createOpExpr(">=",compArgs);
+//						r->body = appendToTailOfList(r->body,comp);
+//					}
+//				}
+//				i++;
+//			}
+//    	}
+//    	moveRules = createTupleRuleTupleGraphMoveRules(getMatched, negedbRules, edbRules,
+//						unLinkedRules);
+//	}
 
     /* ************************************************************ */
     // mark goals as IDB
@@ -6034,101 +6037,104 @@ removeVars (List *vars, List *remVars)
 //    return result;
 //}
 
-static DLRule *
-createMoveRule(Node *lExpr, Node *rExpr, char *bodyAtomName, List *bodyArgs)
-{
-    DLRule *moveRule = makeNode(DLRule);
-    DLAtom *moveHead = makeNode(DLAtom);
-    DLAtom *moveBody = makeNode(DLAtom);
+//
+//static DLRule *
+//createMoveRule(Node *lExpr, Node *rExpr, char *bodyAtomName, List *bodyArgs)
+//{
+//    DLRule *moveRule = makeNode(DLRule);
+//    DLAtom *moveHead = makeNode(DLAtom);
+//    DLAtom *moveBody = makeNode(DLAtom);
+//
+//    moveHead->rel = strdup("move");
+//    moveHead->args = LIST_MAKE(lExpr, rExpr);
+//
+//    moveBody->rel = strdup(bodyAtomName);
+//    moveBody->args = copyObject(bodyArgs);
+//
+//    moveRule->head = moveHead;
+//    moveRule->body = singleton(moveBody);
+//
+//    DEBUG_LOG("new move rule:\n%s", datalogToOverviewString((Node *) moveRule));
+//
+//    return moveRule;
+//}
+//
+//
+//static Node *
+//createSkolemExpr (GPNodeType type, char *id, List *args)
+//{
+//    Node *result;
+//    int i = 1;
+//    List *concatArgs = NIL;
+//
+//    // start with type id, id, '('
+//    switch(type)
+//    {
+//        case GP_NODE_RULE:
+//            concatArgs = appendToTailOfList(concatArgs,
+//                        createConstString("RULE_"));
+//            break;
+//        case GP_NODE_GOAL:
+//            concatArgs = appendToTailOfList(concatArgs,
+//                        createConstString("GOAL_"));
+//            break;
+//        case GP_NODE_POSREL:
+//            concatArgs = appendToTailOfList(concatArgs,
+//                        createConstString("REL_"));
+//            break;
+//        case GP_NODE_NEGREL:
+//            concatArgs = appendToTailOfList(concatArgs,
+//                        createConstString("notREL_"));
+//            break;
+//        case GP_NODE_EDB:
+//            concatArgs = appendToTailOfList(concatArgs,
+//                        createConstString("EDB_"));
+//            break;
+//        case GP_NODE_TUPLE:
+//			concatArgs = appendToTailOfList(concatArgs,
+//						createConstString("TUPLE_"));
+//			break;
+//        case GP_NODE_RULEHYPER:
+//            concatArgs = appendToTailOfList(concatArgs,
+//                    createConstString("RULEHYPEREDGE_"));
+//            break;
+//        case GP_NODE_GOALHYPER:
+//                    concatArgs = appendToTailOfList(concatArgs,
+//                            createConstString("GOALHYPEREDGE_"));
+//            break;
+//    }
+//    concatArgs = appendToTailOfList(concatArgs,
+//                createConstString(id));
+//
+//    concatArgs = appendToTailOfList(concatArgs,
+//                createConstString("("));
+//
+//    // add args
+//    FOREACH(Node,arg,args)
+//    {
+//        if (i++ != 1)
+//            concatArgs = appendToTailOfList(concatArgs,
+//                            createConstString(","));
+//        concatArgs = appendToTailOfList(concatArgs, copyObject(arg));
+//    }
+//
+//    // end with ')'
+//    concatArgs = appendToTailOfList(concatArgs,
+//            createConstString(")"));
+//
+//
+//    // create expression to concatenate parts of the skolem string
+//    result = popHeadOfListP(concatArgs);
+//    while(!LIST_EMPTY(concatArgs))
+//   		result = (Node *) createOpExpr("||",
+//    				LIST_MAKE(result,popHeadOfListP(concatArgs)));
+//
+//    DEBUG_LOG("result expression is: %s", exprToSQL(result));
+//
+//    return (Node *) result;
+//}
 
-    moveHead->rel = strdup("move");
-    moveHead->args = LIST_MAKE(lExpr, rExpr);
 
-    moveBody->rel = strdup(bodyAtomName);
-    moveBody->args = copyObject(bodyArgs);
-
-    moveRule->head = moveHead;
-    moveRule->body = singleton(moveBody);
-
-    DEBUG_LOG("new move rule:\n%s", datalogToOverviewString((Node *) moveRule));
-
-    return moveRule;
-}
-
-
-static Node *
-createSkolemExpr (GPNodeType type, char *id, List *args)
-{
-    Node *result;
-    int i = 1;
-    List *concatArgs = NIL;
-
-    // start with type id, id, '('
-    switch(type)
-    {
-        case GP_NODE_RULE:
-            concatArgs = appendToTailOfList(concatArgs,
-                        createConstString("RULE_"));
-            break;
-        case GP_NODE_GOAL:
-            concatArgs = appendToTailOfList(concatArgs,
-                        createConstString("GOAL_"));
-            break;
-        case GP_NODE_POSREL:
-            concatArgs = appendToTailOfList(concatArgs,
-                        createConstString("REL_"));
-            break;
-        case GP_NODE_NEGREL:
-            concatArgs = appendToTailOfList(concatArgs,
-                        createConstString("notREL_"));
-            break;
-        case GP_NODE_EDB:
-            concatArgs = appendToTailOfList(concatArgs,
-                        createConstString("EDB_"));
-            break;
-        case GP_NODE_TUPLE:
-			concatArgs = appendToTailOfList(concatArgs,
-						createConstString("TUPLE_"));
-			break;
-        case GP_NODE_RULEHYPER:
-            concatArgs = appendToTailOfList(concatArgs,
-                    createConstString("RULEHYPEREDGE_"));
-            break;
-        case GP_NODE_GOALHYPER:
-                    concatArgs = appendToTailOfList(concatArgs,
-                            createConstString("GOALHYPEREDGE_"));
-            break;
-    }
-    concatArgs = appendToTailOfList(concatArgs,
-                createConstString(id));
-
-    concatArgs = appendToTailOfList(concatArgs,
-                createConstString("("));
-
-    // add args
-    FOREACH(Node,arg,args)
-    {
-        if (i++ != 1)
-            concatArgs = appendToTailOfList(concatArgs,
-                            createConstString(","));
-        concatArgs = appendToTailOfList(concatArgs, copyObject(arg));
-    }
-
-    // end with ')'
-    concatArgs = appendToTailOfList(concatArgs,
-            createConstString(")"));
-
-
-    // create expression to concatenate parts of the skolem string
-    result = popHeadOfListP(concatArgs);
-    while(!LIST_EMPTY(concatArgs))
-   		result = (Node *) createOpExpr("||",
-    				LIST_MAKE(result,popHeadOfListP(concatArgs)));
-
-    DEBUG_LOG("result expression is: %s", exprToSQL(result));
-
-    return (Node *) result;
-}
 
 static void
 enumerateRules (DLProgram *p)
