@@ -94,6 +94,10 @@ static List *domainRules = NIL;
 static List *origDLrules = NIL;
 //HashMap *edbRels;
 
+static int relsInBody;
+static int edbRelsInBody;
+
+
 
 DLProgram *
 createBottomUpMLprogram (DLProgram *p)
@@ -106,6 +110,10 @@ createBottomUpMLprogram (DLProgram *p)
 	domainRules = NIL;
 	origDLrules = NIL;
 	
+	char *headPred = NULL;
+	char *gradPred = NULL;
+	char *cpPred = NULL;
+
 	List *domHead = NIL;
 	DLAtom *head = NULL;
 //    boolean isUnion = FALSE;
@@ -130,6 +138,211 @@ createBottomUpMLprogram (DLProgram *p)
 //				isUnion = TRUE;
 //			else
 			head = NULL;
+		}
+	}
+	
+
+	// Loop through DL Rules to find ML model rule which should only have 1 relation in body (an EDB relation)
+        FOREACH(DLRule,r,p->rules)
+	{
+	relsInBody = 0;
+	edbRelsInBody = 0;
+	//DEBUG_LOG("THE CURRENT VALUE OF RELS IN BODY FOR EACH RULE IS EQUAL TO: %d", relsInBody);
+	DEBUG_NODE_BEATIFY_LOG("DISPLAYING FULL DL RULE IN SEARCH OF INITIAL MODEL: ", r);
+
+		// Loop through DLATOMs in the body of each rule
+		FOREACH(DLAtom,a,r->body)
+		{
+			DEBUG_NODE_BEATIFY_LOG("DISPLAYING DL ATOM: ", a);
+			relsInBody = relsInBody + 1;
+			//DEBUG_LOG("THE CURRENT VALUE OF RELS IN BODY AFTER ATOM IS EQUAL TO: %d", relsInBody);
+
+			// Check if an atom is an edb relation
+			if(DL_HAS_PROP(a,DL_IS_EDB_REL))
+			{
+				//DEBUG_LOG("DL_HAS_PROP IS EDB REL");
+				edbRelsInBody = edbRelsInBody + 1;
+			}
+		}
+
+		//DEBUG_LOG("THE CURRENT VALUE OF RELS IN BODY AT THE END OF THIS RULE IS EQUAL TO: %d", relsInBody);
+		//DEBUG_LOG("THE CURRENT VALUE OF EDB RELS IN BODY AT THE END OF THIS RULE IS EQUAL TO: %d", edbRelsInBody);	
+
+		// Locate ML model rule by finding rule with only 1 relation in the body and checking to see if that relation is EDB
+		if(relsInBody == 1)
+		{
+			//DEBUG_LOG("DL RULE ONLY HAS 1 RELATION IN THE BODY OF THE RULE: %d", relsInBody);
+			if(edbRelsInBody == relsInBody)
+			{
+				headPred = getHeadPredName(r);
+				DEBUG_LOG("FOUND THE INITIAL ML MODEL: %s", headPred);
+			}
+		}	
+	}
+
+	// Loop through rules to locate model update rule
+	FOREACH(DLRule,r,p->rules)
+	{
+		//DEBUG_LOG("LOOKING FOR UPDATE RULE...");
+		
+		// Model update rule shares relation name, but has more than one relation in body
+		if (streq(headPred, getHeadPredName(r)))
+		{
+			relsInBody = 0;
+			// Loop through DLATOMs in the body of rule to get # of relations in body
+			FOREACH(DLAtom,a,r->body)
+			{
+				DEBUG_NODE_BEATIFY_LOG("DISPLAYING DL BODY ATOM IN SEARCH OF UPDATE RULE: ", a);
+				relsInBody = relsInBody + 1;
+			}
+	
+			// Model update rule has more than one relation in its body (gradient and old model)
+			if(relsInBody > 1)
+			{	
+				DEBUG_NODE_BEATIFY_LOG("FOUND MODEL UPDATE RULE: ", r);
+				// Once model update rule is found, loop through body to find gradient rule
+				FOREACH(DLAtom,a,r->body)
+				{
+					DEBUG_NODE_BEATIFY_LOG("LOOKING FOR GRADIENT BODY ATOM...", a);
+					// Gradient relation does not share name with model relation
+					if (streq(headPred, a->rel))
+					{
+						DEBUG_LOG("RELATION NAME: %s", a->rel);
+						DEBUG_LOG("EQUALS: %s", headPred);
+					}
+					else
+					{
+						DEBUG_LOG("RELATION NAME: %s", a->rel);
+						DEBUG_LOG("DOES NOT EQUAL: %s", headPred);
+						DEBUG_LOG("GRADIENT RELATION NAME FOUND: %s", a->rel);
+						gradPred = a->rel;
+					}
+				}
+			}
+		}
+	    	
+	}
+
+	// Loop through rules to locate gradient rule
+	FOREACH(DLRule,r,p->rules)
+	{
+		//DEBUG_LOG("LOOKING FOR GRADIENT RULE BASED ON NAME...");
+		if (streq(gradPred, getHeadPredName(r)))
+		{
+			DEBUG_NODE_BEATIFY_LOG("FOUND GRADIENT RULE: ", r);
+
+			FOREACH(DLAtom,a,r->body)
+			{
+				// CP is the only IDB relation in the body of the gradient rule
+				if(DL_HAS_PROP(a,DL_IS_IDB_REL))
+				{
+					DEBUG_NODE_BEATIFY_LOG("FOUND CP RELATION: ", a);
+					cpPred = a->rel;
+				} 
+			}
+		}
+	}
+
+	// Loop through rules to generate provenance for predict and gradient
+	FOREACH(DLRule,r,p->rules)
+	{
+		if (streq(cpPred, getHeadPredName(r)))
+		{
+			DEBUG_NODE_BEATIFY_LOG("FOUND CP RULE: ", r);
+			DLRule *cpr = copyObject(r);
+
+			// Modify copy name to become predict provenance
+			DLAtom *a = cpr->head;
+			DEBUG_LOG("PREDICT RULE COPIED: %s", a->rel);
+			a->rel = concatStrings(a->rel,"Prov");
+				
+			// Append copy to list of rules
+			programRules = appendToTailOfList(p->rules, cpr);
+
+			// Clear original rule body
+			r->body = NULL;
+			
+			// Add provenance relation to original rule body
+			r->body = appendToTailOfList(r->body, copyObject(a));
+			
+			DLAtom *aor = r->head;
+			DLVar *dlv = createDLVar("Predict", DT_STRING);
+			// Change expression argument name in head of rule
+			FOREACH(Node,arg,aor->args)
+			{
+				if(IS_EXPR(arg))
+				{
+					//DEBUG_NODE_BEATIFY_LOG("DISPLAYING EXPRESSION ARG IN HEAD: ", arg);
+					// Change argument to generalized name 'Predict'
+					aor->args = replaceNode(aor->args, arg, dlv);
+				}
+			}
+			
+			// Change expression argument name in body of rule
+			FOREACH(DLAtom,a,r->body)
+			{
+				FOREACH(Node,arg,a->args)
+				{
+					if(IS_EXPR(arg))
+					{
+						//DEBUG_NODE_BEATIFY_LOG("DISPLAYING EXPRESSION ARG IN BODY: ", arg);
+						// Change argument to generalized name 'Predict'
+						a->args = replaceNode(a->args, arg, dlv);
+					}
+				}
+				DL_SET_BOOL_PROP(a, DL_IS_IDB_REL);
+			}
+			
+		}
+		
+		if (streq(gradPred, getHeadPredName(r)))
+		{
+			// Copy gradient rule
+			DLRule *cpr = copyObject(r);
+			
+			// Modify copy name to become predict provenance
+			DLAtom *a = cpr->head;
+			DEBUG_LOG("GRADIENT RULE COPIED: %s", a->rel);
+			a->rel = concatStrings(a->rel,"Prov");
+
+			// Append copy to list of rules
+			programRules = appendToTailOfList(p->rules, cpr);
+
+			// Clear original rule body
+			r->body = NULL;
+
+			// Add provenance relation to original rule body
+			r->body = appendToTailOfList(r->body, copyObject(a));
+
+			DLAtom *aor = r->head;
+			DLVar *dlv = createDLVar("G", DT_STRING);
+			
+			// Change expression argument name in head of rule
+			FOREACH(Node,arg,aor->args)
+			{
+				if(IS_EXPR(arg))
+				{
+					//DEBUG_NODE_BEATIFY_LOG("DISPLAYING EXPRESSION ARG IN HEAD: ", arg);
+					// Change argument to generalized name 'Predict'
+					aor->args = replaceNode(aor->args, arg, dlv);
+				}
+			}
+			
+			// Change expression argument name in body of rule
+			FOREACH(DLAtom,a,r->body)
+			{
+				FOREACH(Node,arg,a->args)
+				{
+					if(IS_EXPR(arg))
+					{
+						//DEBUG_NODE_BEATIFY_LOG("DISPLAYING EXPRESSION ARG IN BODY: ", arg);
+						// Change argument to generalized name 'Predict'
+						a->args = replaceNode(a->args, arg, dlv);
+					}
+				}
+				DL_SET_BOOL_PROP(a, DL_IS_IDB_REL);
+			}
+
 		}
 	}
 
