@@ -103,6 +103,12 @@ createBottomUpGPprogram (DLProgram *p)
     DEBUG_NODE_BEATIFY_LOG("create GP bottom up program for:",p);
     INFO_DL_LOG("create GP bottom up program for:",p);
 
+    if (DL_HAS_PROP(p,DL_RECURSIVE_QUERY))
+    {
+    	INFO_LOG("Recursion is not implemented yet!!");
+    	return p;
+    }
+
 	// make sure that global vars are reset
 	programRules = NIL;
 	domainRules = NIL;

@@ -30,7 +30,7 @@
 static void analyzeDLProgram (DLProgram *p);
 static void analyzeSummerizationBasics (DLProgram *p);
 static void analyzeSummarizationAdvanced (DLProgram *p);
-static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p); // , Set *edbRels, Set *factRels);
+static void analyzeRule (DLRule *r, Set *idbRels, DLProgram *p, Set *bodyRels); // , Set *edbRels, Set *factRels);
 static void analyzeProv (DLProgram *p, KeyValue *kv);
 static List *analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules);
 
@@ -82,10 +82,12 @@ analyzeDLProgram (DLProgram *p)
     Set *idbRels = STRSET();
 //    Set *edbRels = STRSET();
 //    Set *factRels = STRSET();
+    Set *bodyRels = STRSET();
     List *rules = NIL;
     List *facts = NIL;
     List *rpqRules = NIL;
     List *doms = NIL;
+    boolean isRecursive = TRUE;
 
     // extract summarization options
     analyzeSummerizationBasics(p);
@@ -145,7 +147,20 @@ analyzeDLProgram (DLProgram *p)
 
     // analyze all rules
     FOREACH(DLRule,r,rules)
-        analyzeRule((DLRule *) r, idbRels, p); //, edbRels, factRels);
+        analyzeRule((DLRule *) r, idbRels, p, bodyRels); //, edbRels, factRels);
+
+    // recursion
+    FOREACH(DLRule,r,rules)
+    {
+    	if (!hasSetElem(bodyRels,r->head->rel))
+    		isRecursive = FALSE;
+    }
+
+    if (isRecursive)
+    {
+    	DL_SET_BOOL_PROP(p, DL_RECURSIVE_QUERY);
+    	INFO_LOG("program is: %s", DL_RECURSIVE_QUERY);
+    }
 
     p->rules = rules;
     p->facts = facts;
@@ -412,7 +427,7 @@ analyzeProv (DLProgram *p, KeyValue *kv)
     if (isPrefix(type,ML_PROV))
     {
         DL_SET_BOOL_PROP(p,ML_PROV);
-	INFO_LOG("DL_SET_BOOL_PROP: ML_PROV");
+        INFO_LOG("DL_SET_BOOL_PROP: ML_PROV");
     }
 
     // check if format is given
@@ -463,7 +478,7 @@ analyzeProv (DLProgram *p, KeyValue *kv)
 }
 
 static void
-analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *factRels)
+analyzeRule (DLRule *r, Set *idbRels, DLProgram *p, Set *bodyRels) // , Set *edbRels, Set *factRels)
 {
     // check safety
     if (!checkDLRuleSafety(r))
@@ -493,6 +508,9 @@ analyzeRule (DLRule *r, Set *idbRels, DLProgram *p) // , Set *edbRels, Set *fact
 //                if(!(isFactRel || isEdbRel))
 //                    FATAL_LOG("Atom uses predicate %s that is neither IDB nor EDB", atom->rel);
 //            }
+
+            // collect all relations in the body for recursion check
+            addToSet(bodyRels,atom->rel);
         }
 
         if (isA(a,DLComparison))
@@ -519,6 +537,7 @@ analyzeAndExpandRPQ (RPQQuery *q, List **rpqRules)
     DLProgram *rpqP = (DLProgram *) rpqQueryToDatalog(q);
     return rpqP->rules;
 }
+
 
 
 //static void

@@ -184,6 +184,7 @@ extern void delDLProp(DLNode *n, char *key);
 #define DL_RULE_ID "RULE_ID"
 #define DL_DOMAIN_RULE "DOMAIN_RULE"
 #define DL_UNION_QUERY "IS_UNION_QUERY"
+#define DL_RECURSIVE_QUERY "IS_RECURSIVE_QUERY"
 
 // property keys for DT information
 #define DL_PRED_DTS "PREDICATE_DATATYPES"

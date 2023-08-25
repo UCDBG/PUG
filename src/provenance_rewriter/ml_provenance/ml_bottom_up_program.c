@@ -143,12 +143,12 @@ createBottomUpMLprogram (DLProgram *p)
 	
 
 	// Loop through DL Rules to find ML model rule which should only have 1 relation in body (an EDB relation)
-        FOREACH(DLRule,r,p->rules)
+    FOREACH(DLRule,r,p->rules)
 	{
-	relsInBody = 0;
-	edbRelsInBody = 0;
-	//DEBUG_LOG("THE CURRENT VALUE OF RELS IN BODY FOR EACH RULE IS EQUAL TO: %d", relsInBody);
-	DEBUG_NODE_BEATIFY_LOG("DISPLAYING FULL DL RULE IN SEARCH OF INITIAL MODEL: ", r);
+		relsInBody = 0;
+		edbRelsInBody = 0;
+		//DEBUG_LOG("THE CURRENT VALUE OF RELS IN BODY FOR EACH RULE IS EQUAL TO: %d", relsInBody);
+		DEBUG_NODE_BEATIFY_LOG("DISPLAYING FULL DL RULE IN SEARCH OF INITIAL MODEL: ", r);
 
 		// Loop through DLATOMs in the body of each rule
 		FOREACH(DLAtom,a,r->body)
@@ -254,7 +254,7 @@ createBottomUpMLprogram (DLProgram *p)
 			// Modify copy name to become predict provenance
 			DLAtom *a = cpr->head;
 			DEBUG_LOG("PREDICT RULE COPIED: %s", a->rel);
-			a->rel = concatStrings(a->rel,"Prov");
+			a->rel = CONCAT_STRINGS(a->rel,"Prov");
 				
 			// Append copy to list of rules
 			programRules = appendToTailOfList(p->rules, cpr);
@@ -303,7 +303,7 @@ createBottomUpMLprogram (DLProgram *p)
 			// Modify copy name to become predict provenance
 			DLAtom *a = cpr->head;
 			DEBUG_LOG("GRADIENT RULE COPIED: %s", a->rel);
-			a->rel = concatStrings(a->rel,"Prov");
+			a->rel = CONCAT_STRINGS(a->rel,"Prov");
 
 			// Append copy to list of rules
 			programRules = appendToTailOfList(p->rules, cpr);
