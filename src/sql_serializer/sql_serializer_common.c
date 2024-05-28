@@ -181,6 +181,11 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
                             matchInfo->having = (SelectionOperator *) cur;
                             state = MATCH_HAVING;
                         }
+//                        else if (isA(child,OrderOperator))
+//                        {
+//                        	matchInfo->limitOffset = (LimitOperator *) cur;
+//                        	state = MATCH_NEXTBLOCK;
+//                        }
                         /* WHERE */
                         else
                         {
@@ -348,8 +353,16 @@ genSerializeQueryBlock (QueryOperator *q, StringInfo str, SerializeClausesAPI *a
             break;
             case MATCH_WHERE:
             {
-                matchInfo->fromRoot = cur;
-                state = MATCH_NEXTBLOCK;
+//            	if (isA(OP_LCHILD(cur),OrderOperator))
+//				{
+//					matchInfo->limitOffset = (LimitOperator *) cur;
+//					state = MATCH_LIMIT;
+//				}
+//            	else
+//            	{
+                    matchInfo->fromRoot = cur;
+                    state = MATCH_NEXTBLOCK;
+//            	}
             }
             break;
             case MATCH_WINDOW:

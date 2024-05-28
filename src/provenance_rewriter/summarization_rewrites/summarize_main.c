@@ -2985,15 +2985,14 @@ rewriteRandomProvTuples (Node *provExpl, int sampleSize, ProvQuestion qType, Lis
 	// create selection clause
 	Node *selCond = (Node *) createConstInt(provSize);
 
-	// TODO: bug generated
-//	LimitOperator *o = createLimitOp(selCond,NULL,randomProv,NIL);
-//	addParent(randomProv, (QueryOperator *) o);
+	// TODO: make it work for both postgres and oracle
+//	selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(provSize)));
+//	so = createSelectionOp(selCond, randomProv, NIL, getAttrNames(randomProv->schema));
 
-	selCond = (Node *) createOpExpr("<=",LIST_MAKE(makeNode(RowNumExpr),createConstInt(provSize)));
-	so = createSelectionOp(selCond, randomProv, NIL, getAttrNames(randomProv->schema));
+	LimitOperator *lo = createLimitOp(selCond, NULL, randomProv, NIL);
 
-	randomProv->parents = singleton(so);
-	randomProv = (QueryOperator *) so;
+	randomProv->parents = singleton(lo);
+	randomProv = (QueryOperator *) lo;
 	randomProv->provAttrs = copyObject(provAttrs);
 
 	result = (Node *) randomProv;

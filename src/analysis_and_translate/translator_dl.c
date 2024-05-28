@@ -93,23 +93,28 @@ translateParseDL(Node *q)
     else
         FATAL_LOG("currently only DLProgram node type translation supported");
 
-    INFO_OP_LOG("translated DL model before casting:\n", result);
+    if (isRewriteOptionActivated(OPTION_AGGRESSIVE_MODEL_CHECKING))
+    {
 
-    // apply casts where necessary
-    if (isA(result, List))
-    {
-        List *translation = (List *) result;
-        FOREACH(QueryOperator,c,translation)
-        {
-            introduceCastsWhereNecessary(c);
-            ASSERT(checkModel(c));
-        }
+		INFO_OP_LOG("translated DL model before casting:\n", result);
+
+		// apply casts where necessary
+		if (isA(result, List))
+		{
+			List *translation = (List *) result;
+			FOREACH(QueryOperator,c,translation)
+			{
+				introduceCastsWhereNecessary(c);
+				ASSERT(checkModel(c));
+			}
+		}
+		else if (IS_OP(result))
+		{
+			introduceCastsWhereNecessary((QueryOperator *) result);
+			ASSERT(checkModel((QueryOperator *) result));
+		}
     }
-    else if (IS_OP(result))
-    {
-        introduceCastsWhereNecessary((QueryOperator *) result);
-        ASSERT(checkModel((QueryOperator *) result));
-    }
+
     INFO_OP_LOG("translated DL model:\n", result);
 
 //	if (doSumm)

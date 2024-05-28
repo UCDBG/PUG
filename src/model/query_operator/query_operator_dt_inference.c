@@ -156,6 +156,7 @@ addCastsToExpressions(QueryOperator *q)
         case T_OrderOperator:
         case T_JsonTableOperator:
         case T_DuplicateRemoval:
+//        case T_LimitOperator:
         case T_ConstRelOperator:
         { //TODO
 
