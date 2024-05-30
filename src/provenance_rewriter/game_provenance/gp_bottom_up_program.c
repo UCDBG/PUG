@@ -22,6 +22,7 @@
 #include "model/datalog/datalog_model.h"
 #include "provenance_rewriter/game_provenance/gp_bottom_up_program.h"
 //#include "provenance_rewriter/game_provenance/gp_move_rules.h"
+#include "model/query_operator/operator_property.h"
 #include "utility/string_utils.h"
 
 //#define ADD_ARGS "L"
@@ -221,12 +222,18 @@ createWhyGPprogram (DLProgram *p, DLAtom *why)
     enumerateRules (p);
     solvedProgram = copyObject(p);
     solvedProgram = unifyProgram(solvedProgram, why); // Step1
-    solvedProgram = solveProgram(solvedProgram, why, FALSE); // Step2
 
-    p->n.properties = NULL;
-    setDLProp((DLNode *) solvedProgram, DL_PROV_PROG, (Node *) p);
+    // if not creating sample of provenance, rewrite datalog program that captures full provenance
+    if(!DL_HAS_PROP(p,PROP_SAMPLING_DOSUM))
+    {
+        solvedProgram = solveProgram(solvedProgram, why, FALSE); // Step2
 
-    solvedProgram = rewriteSolvedProgram(solvedProgram); // Step3 - 5
+        p->n.properties = NULL;
+        setDLProp((DLNode *) solvedProgram, DL_PROV_PROG, (Node *) p);
+
+        solvedProgram = rewriteSolvedProgram(solvedProgram); // Step3 - 5
+    }
+
     DL_DEL_PROP(solvedProgram, DL_PROV_WHY);
 
     INFO_LOG("program for computing Why-prov: %s",

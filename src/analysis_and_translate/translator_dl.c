@@ -213,7 +213,7 @@ translateProgram(DLProgram *p)
 
         // if we want to compute the provenance then construct program
         // for creating the provenance and translate this one
-        if (IS_GP_PROV(p) && !DL_HAS_PROP(p,PROP_SAMPLING_DOSUM))
+        if (IS_GP_PROV(p)) // && !DL_HAS_PROP(p,PROP_SAMPLING_DOSUM))
         {
             DEBUG_LOG("user asked for provenance computation for:\n%s",
                             datalogToOverviewString((Node *) p));
@@ -481,6 +481,7 @@ translateProgram(DLProgram *p)
         	return result;
         }
 
+        // Creating a sample of provenance
         if(DL_HAS_PROP(p,PROP_SAMPLING_DOSUM))
 		{
 //        	// collect the ans rels
@@ -492,7 +493,7 @@ translateProgram(DLProgram *p)
 			Node *result = NULL;
 
 			DEBUG_LOG("add relational algebra sampling code");
-			MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_DOSUM, createConstBool(TRUE));
+			MAP_ADD_STRING_KEY(props, PROP_SAMPLING_DOSUM, createConstBool(TRUE));
 			result = rewriteSampleOutput((Node *) translation, props, qType);
 			INFO_OP_LOG("translated DL model with sampling:\n", result);
 
