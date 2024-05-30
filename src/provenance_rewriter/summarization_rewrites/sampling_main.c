@@ -73,20 +73,20 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 	DEBUG_LOG("sampling options are: qType: %s, sample size: %f",
 			  ProvQuestionToString(qType), sampleSize);
 
-	if(qType == PROV_Q_WHY)
-	{
+//	if(qType == PROV_Q_WHY)
+//	{
 		//TODO: implement the sampling algorithm
 
 		//Step1: partitioning
 		rewrittenTreePart = rewritePartition(rewrittenTree);
 		result = (Node *) rewrittenTreePart;
-	}
+//	}
 
-	if(qType == PROV_Q_WHYNOT)
-	{
-		INFO_LOG("USE SUMMARIZATION:", result);
-		result = rewrittenTree;
-	}
+//	if(qType == PROV_Q_WHYNOT)
+//	{
+//		INFO_LOG("USE SUMMARIZATION:", result);
+//		result = rewrittenTree;
+//	}
 
 	return result;
 }
@@ -101,6 +101,23 @@ static Node *rewritePartition (Node *rewrittenTree)
 	INFO_OP_LOG("head of input rewritten trees:", in);
 
 	QueryOperator *child = (QueryOperator *) getHeadOfListP(in->inputs);
+
+	// Example of creating a projection
+	int pos = 0;
+	List *projExpr = ((ProjectionOperator *) child)->projExprs;
+	ProjectionOperator *op;
+
+	FOREACH(AttributeDef,p,child->schema->attrDefs)
+	{
+		projExpr = appendToTailOfList(projExpr,
+				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+
+		pos++;
+	}
+
+	op = createProjectionOp(projExpr, child, NIL, getAttrNames(child->schema));
+	child->parents = singleton(op);
+	child = (QueryOperator *) op;
 
 	// Create the window function
 	WindowOperator *wo = NULL;

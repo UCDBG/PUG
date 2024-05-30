@@ -213,7 +213,7 @@ translateProgram(DLProgram *p)
 
         // if we want to compute the provenance then construct program
         // for creating the provenance and translate this one
-        if (IS_GP_PROV(p))
+        if (IS_GP_PROV(p) && !DL_HAS_PROP(p,PROP_SAMPLING_DOSUM))
         {
             DEBUG_LOG("user asked for provenance computation for:\n%s",
                             datalogToOverviewString((Node *) p));
@@ -262,6 +262,7 @@ translateProgram(DLProgram *p)
     //            MAP_ADD_STRING_KEY(predToRules,headPred,pRules);
     //        }
         }
+
         FOREACH(DLAtom,f,p->facts)
         {
             char *relName = f->rel;
@@ -452,13 +453,13 @@ translateProgram(DLProgram *p)
 //        	return (Node *) summInputs;
 
             boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM) && !IS_GP_PROV(p);
-            boolean doSamp = DL_HAS_PROP(p, PROP_SAMPLING_DOSUM) && !IS_GP_PROV(p);
+//            boolean doSamp = DL_HAS_PROP(p, PROP_SAMPLING_DOSUM) && !IS_GP_PROV(p);
 
         	ProvQuestion qType = PROV_Q_WHY;
         	HashMap *props = copyObject(p->n.properties);
         	Node *result = NULL;
 
-        	if(doSumm || doSamp)
+        	if(doSumm) //|| doSamp)
         		qType = (ProvQuestion) INT_VALUE(DL_GET_PROP(p, PROP_SUMMARIZATION_QTYPE));
 
         	if (doSumm)
@@ -469,16 +470,34 @@ translateProgram(DLProgram *p)
 				INFO_OP_LOG("translated DL model with summarization:\n", result);
 			}
 
-			if (doSamp)
-			{
-				DEBUG_LOG("add relational algebra sampling code");
-//				MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_IS_DL, createConstBool(TRUE));
-				result = rewriteSampleOutput((Node *) summInputs, props, qType);
-				INFO_OP_LOG("translated DL model with sampling:\n", result);
-			}
+//			if (doSamp)
+//			{
+//				DEBUG_LOG("add relational algebra sampling code");
+////				MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_IS_DL, createConstBool(TRUE));
+//				result = rewriteSampleOutput((Node *) summInputs, props, qType);
+//				INFO_OP_LOG("translated DL model with sampling:\n", result);
+//			}
 
         	return result;
         }
+
+        if(DL_HAS_PROP(p,PROP_SAMPLING_DOSUM))
+		{
+//        	// collect the ans rels
+//			DLAtom *head = (DLAtom *) DL_GET_PROP(p, DL_PROV_WHY);
+//			p->ans = head->rel;
+
+        	ProvQuestion qType = PROV_Q_WHY;
+        	HashMap *props = copyObject(p->n.properties);
+			Node *result = NULL;
+
+			DEBUG_LOG("add relational algebra sampling code");
+			MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_DOSUM, createConstBool(TRUE));
+			result = rewriteSampleOutput((Node *) translation, props, qType);
+			INFO_OP_LOG("translated DL model with sampling:\n", result);
+
+			return result;
+		}
 
         if (p->ans == NULL)
             return (Node *) translation;
