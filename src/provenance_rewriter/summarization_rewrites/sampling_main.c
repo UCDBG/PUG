@@ -34,6 +34,8 @@
 #define RESULT_WO_ATTR "numOfdistOnoc"
 
 static Node *rewritePartition (Node *rewrittenTree);
+static Node *children_Of_Join (QueryOperator *op, List *collectChildOps);
+//void children_Of_Join (QueryOperator *op, List *collectChildOps);
 
 
 Node *
@@ -75,17 +77,14 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 
 //	if(qType == PROV_Q_WHY)
 //	{
-		//TODO: implement the sampling algorithm
 
-		//Step1: partitioning
-		rewrittenTreePart = rewritePartition(rewrittenTree);
-		result = (Node *) rewrittenTreePart;
-//	}
+	//TODO: implement the sampling algorithm
+	Node *rewrittenHead = (Node *) getHeadOfListP((List *) rewrittenTree);
+	INFO_OP_LOG("input rewritten trees:", rewrittenTree);
 
-//	if(qType == PROV_Q_WHYNOT)
-//	{
-//		INFO_LOG("USE SUMMARIZATION:", result);
-//		result = rewrittenTree;
+	//Step1: partitioning
+	rewrittenTreePart = rewritePartition(rewrittenHead);
+	result = (Node *) rewrittenTreePart;
 //	}
 
 	return result;
@@ -94,52 +93,83 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 
 static Node *rewritePartition (Node *rewrittenTree)
 {
-	Node *rewrittenHead = (Node *) getHeadOfListP((List *) rewrittenTree);
-	INFO_OP_LOG("input rewritten trees:", rewrittenTree);
-
-	QueryOperator *in = (QueryOperator *) rewrittenHead;
+	QueryOperator *in = (QueryOperator *) rewrittenTree;
 	INFO_OP_LOG("head of input rewritten trees:", in);
 
-	QueryOperator *child = (QueryOperator *) getHeadOfListP(in->inputs);
+	// access join operator
+	// TODO: always duplicate eliminator and projection operators
+	QueryOperator *po = (QueryOperator *) getHeadOfListP(in->inputs);
+	QueryOperator *op = (QueryOperator *) getHeadOfListP(po->inputs);
 
-	// Example of creating a projection
-	int pos = 0;
-	List *projExpr = ((ProjectionOperator *) child)->projExprs;
-	ProjectionOperator *op;
+	// access children of join operator
+	List *collectChildOps = NIL;
+	Node *child = children_Of_Join(op, collectChildOps);
 
-	FOREACH(AttributeDef,p,child->schema->attrDefs)
-	{
-		projExpr = appendToTailOfList(projExpr,
-				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+	INFO_OP_LOG("collected input operators:", (Node *) child);
 
-		pos++;
-	}
+//	// Example of creating a projection
+//	int pos = 0;
+//	List *projExpr = ((ProjectionOperator *) child)->projExprs;
+//	ProjectionOperator *op;
+//
+//	FOREACH(AttributeDef,p,child->schema->attrDefs)
+//	{
+//		projExpr = appendToTailOfList(projExpr,
+//				createFullAttrReference(strdup(p->attrName), 0, pos, 0, p->dataType));
+//
+//		pos++;
+//	}
+//
+//	op = createProjectionOp(projExpr, child, NIL, getAttrNames(child->schema));
+//	child->parents = singleton(op);
+//	child = (QueryOperator *) op;
 
-	op = createProjectionOp(projExpr, child, NIL, getAttrNames(child->schema));
-	child->parents = singleton(op);
-	child = (QueryOperator *) op;
+//	// Create the window function
+//	WindowOperator *wo = NULL;
+//	List *partitionBy = NIL;
+//	partitionBy = ((ProjectionOperator *) child)->projExprs;
+//
+//	// add window functions for partitioning
+//	AttributeReference *ar = (AttributeReference *) getNthOfListP(partitionBy,1);
+//	Node *cntFunc = (Node *) createFunctionCall(strdup("COUNT"), singleton(ar));
+//
+//	wo = createWindowOp(cntFunc,
+//			partitionBy,
+//			NIL,
+//			NULL,
+//			strdup(RESULT_WO_ATTR),
+//			child,
+//			NIL
+//	);
+//
+//	addParent(child, (QueryOperator *) wo);
+//	INFO_OP_LOG("tree with added window function:", wo);
 
-	// Create the window function
-	WindowOperator *wo = NULL;
-	List *partitionBy = NIL;
-	partitionBy = ((ProjectionOperator *) child)->projExprs;
 
-	// add window functions for partitioning
-	AttributeReference *ar = (AttributeReference *) getNthOfListP(partitionBy,1);
-	Node *cntFunc = (Node *) createFunctionCall(strdup("COUNT"), singleton(ar));
-
-	wo = createWindowOp(cntFunc,
-			partitionBy,
-			NIL,
-			NULL,
-			strdup(RESULT_WO_ATTR),
-			child,
-			NIL
-	);
-
-	addParent(child, (QueryOperator *) wo);
-	INFO_OP_LOG("tree with added window function:", wo);
-
-	return (Node *) wo;
+	return (Node *) child;
 }
 
+
+static Node *children_Of_Join(QueryOperator *op, List *collectChildOps)
+{
+	QueryOperator *lChild;
+	QueryOperator *rChild;
+
+	if(isA(op,JoinOperator))
+	{
+		lChild = OP_LCHILD(op);
+	    rChild = OP_RCHILD(op);
+
+	    if(isA(lChild,JoinOperator))
+	    	children_Of_Join(lChild, collectChildOps);
+	    else
+			collectChildOps = appendToTailOfList(collectChildOps, copyObject(lChild));
+
+	    if(isA(rChild,JoinOperator))
+	    	children_Of_Join(rChild, collectChildOps);
+	    else
+	    	collectChildOps = appendToTailOfList(collectChildOps, copyObject(rChild));
+	}
+
+	return (Node *) collectChildOps;
+}

@@ -453,7 +453,6 @@ translateProgram(DLProgram *p)
 //        	return (Node *) summInputs;
 
             boolean doSumm = DL_HAS_PROP(p, PROP_SUMMARIZATION_DOSUM) && !IS_GP_PROV(p);
-//            boolean doSamp = DL_HAS_PROP(p, PROP_SAMPLING_DOSUM) && !IS_GP_PROV(p);
 
         	ProvQuestion qType = PROV_Q_WHY;
         	HashMap *props = copyObject(p->n.properties);
@@ -469,14 +468,6 @@ translateProgram(DLProgram *p)
 				result = rewriteSummaryOutput((Node *) summInputs, props, qType);
 				INFO_OP_LOG("translated DL model with summarization:\n", result);
 			}
-
-//			if (doSamp)
-//			{
-//				DEBUG_LOG("add relational algebra sampling code");
-////				MAP_ADD_STRING_KEY(props, PROP_SUMMARIZATION_IS_DL, createConstBool(TRUE));
-//				result = rewriteSampleOutput((Node *) summInputs, props, qType);
-//				INFO_OP_LOG("translated DL model with sampling:\n", result);
-//			}
 
         	return result;
         }
