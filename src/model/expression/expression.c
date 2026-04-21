@@ -1296,5 +1296,5 @@ findAllNodesVisitor(Node *node, FindNotesContext *context)
         return TRUE;
     }
 
-    return visit(node, findAllNodesVisitor, context);
+    return visit(node, (boolean (*)(void)) findAllNodesVisitor, context);
 }
