@@ -1161,7 +1161,7 @@ findAttrReferences (Node *node, List **state)
         *state = appendToTailOfList(*state, node);
     }
 
-    return visit(node, (boolean (*)(void)) findAttrReferences, state);
+    return visit(node, findAttrReferences, state);
 }
 
 List *
@@ -1183,7 +1183,7 @@ findDLVars (Node *node, List **state)
     if (isA(node, DLVar))
         *state = appendToTailOfList(*state, node);
 
-    return visit(node, (boolean (*)(void)) findDLVars, state);
+    return visit(node, findDLVars, state);
 }
 
 List *
@@ -1208,7 +1208,7 @@ findDLVarsIgnoreProps (Node *node, List **state)
     if (isA(node, DLVar))
         *state = appendToTailOfList(*state, node);
 
-    return visit(node, (boolean (*)(void)) findDLVars, state);
+    return visit(node, findDLVars, state);
 }
 
 //TODO this is unsafe, callers are passing op as an operator even though it may not be one.
@@ -1296,5 +1296,5 @@ findAllNodesVisitor(Node *node, FindNotesContext *context)
         return TRUE;
     }
 
-    return visit(node, (boolean (*)(void)) findAllNodesVisitor, context);
+    return visit(node, findAllNodesVisitor, context);
 }
