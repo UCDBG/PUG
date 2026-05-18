@@ -163,7 +163,11 @@ static Node *children_Of_Join(QueryOperator *op, List *collectChildOps)
 	    if(isA(lChild,JoinOperator))
 	    	children_Of_Join(lChild, collectChildOps);
 	    else
+	    {
+//	    	ProjectionOperator *p = (ProjectionOperator *) lChild;
+//	    	QueryOperator *dup = (QueryOperator *) createDuplicateRemovalOp(p->projExprs, (QueryOperator *) p, NIL, getAttrNames(p->op.schema));
 			collectChildOps = appendToTailOfList(collectChildOps, copyObject(lChild));
+	    }
 
 	    if(isA(rChild,JoinOperator))
 	    	children_Of_Join(rChild, collectChildOps);
