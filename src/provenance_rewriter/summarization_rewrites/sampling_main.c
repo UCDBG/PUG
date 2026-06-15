@@ -32,8 +32,10 @@
 #include "provenance_rewriter/summarization_rewrites/sampling_main.h"
 
 #define RESULT_WO_ATTR "numOfdistOnoc"
-// Toggle: define to stop after partTa (skip Fta window operator)
-// #define TEST_PART_TA_ONLY
+// Uncomment exactly one to test a specific stage in isolation:
+// #define TEST_PART_TA_ONLY   // return after partTa
+// #define TEST_FTA             // return after Fta
+#define TEST_FTB             // return after Ftb
 
 static Node *rewritePartition (Node *rewrittenTree);
 static List *children_Of_Join (QueryOperator *op, List *collectChildOps);
@@ -92,6 +94,83 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 }
 
 
+/*
+ * Walk a join condition tree and return the attrPosition of the AttributeReference
+ * that belongs to the given fromClauseItem (0=left child, 1=right child) inside
+ * the first "=" operator found.  Returns INVALID_ATTR if none is found.
+ */
+static int
+findEqAttrPos (Node *cond, int fromClauseItem)
+{
+	if (cond == NULL || !isA(cond, Operator))
+		return INVALID_ATTR;
+
+	Operator *oper = (Operator *) cond;
+	if (streq(oper->name, "="))
+	{
+		FOREACH(Node, arg, oper->args)
+		{
+			if (isA(arg, AttributeReference))
+			{
+				AttributeReference *ref = (AttributeReference *) arg;
+				if (ref->fromClauseItem == fromClauseItem)
+					return ref->attrPosition;
+			}
+		}
+	}
+	else
+	{
+		FOREACH(Node, arg, oper->args)
+		{
+			int pos = findEqAttrPos(arg, fromClauseItem);
+			if (pos != INVALID_ATTR)
+				return pos;
+		}
+	}
+	return INVALID_ATTR;
+}
+
+/*
+ * Fallback for when the join equality lives in the Selection above (cross-product
+ * join).  In that context every AttributeReference has fromClauseItem=0; we use
+ * attrPosition vs nLeft to tell left from right.
+ *   side 0 → left  child (attrPos < nLeft)  → returns attrPos
+ *   side 1 → right child (attrPos >= nLeft) → returns attrPos - nLeft
+ */
+static int
+findEqAttrPosFromSel (Node *cond, int nLeft, int side)
+{
+	if (cond == NULL || !isA(cond, Operator))
+		return INVALID_ATTR;
+
+	Operator *oper = (Operator *) cond;
+	if (streq(oper->name, "="))
+	{
+		FOREACH(Node, arg, oper->args)
+		{
+			if (isA(arg, AttributeReference))
+			{
+				AttributeReference *ref = (AttributeReference *) arg;
+				if (side == 0 && ref->attrPosition < nLeft)
+					return ref->attrPosition;
+				if (side == 1 && ref->attrPosition >= nLeft)
+					return ref->attrPosition - nLeft;
+			}
+		}
+	}
+	else
+	{
+		FOREACH(Node, arg, oper->args)
+		{
+			int pos = findEqAttrPosFromSel(arg, nLeft, side);
+			if (pos != INVALID_ATTR)
+				return pos;
+		}
+	}
+	return INVALID_ATTR;
+}
+
+
 static Node *rewritePartition (Node *rewrittenTree)
 {
 	QueryOperator *in = (QueryOperator *) rewrittenTree;
@@ -137,18 +216,18 @@ static Node *rewritePartition (Node *rewrittenTree)
 		projExprs, op, NIL, attrNames);
 	op->parents = singleton((QueryOperator *) partTaProj);
 
-	// List *dupAttrExprs = NIL;
-	// i = 0;
-	// FOREACH(AttributeDef, ad, ((QueryOperator *) partTaProj)->schema->attrDefs)
-	// {
-	// 	dupAttrExprs = appendToTailOfList(dupAttrExprs,
-	// 		createFullAttrReference(strdup(ad->attrName), 0, i,
-	// 								INVALID_ATTR, ad->dataType));
-	// 	i++;
-	// }
+	List *dupAttrExprs = NIL;
+	i = 0;
+	FOREACH(AttributeDef, ad, ((QueryOperator *) partTaProj)->schema->attrDefs)
+	{
+		dupAttrExprs = appendToTailOfList(dupAttrExprs,
+			createFullAttrReference(strdup(ad->attrName), 0, i,
+									INVALID_ATTR, ad->dataType));
+		i++;
+	}
 
 	DuplicateRemoval *partTa = createDuplicateRemovalOp(
-		projExprs, (QueryOperator *) partTaProj, NIL, attrNames);
+		dupAttrExprs, (QueryOperator *) partTaProj, NIL, attrNames);
 	((QueryOperator *) partTaProj)->parents = singleton((QueryOperator *) partTa);
 
 	// CTE for partTa to be referenced by Fta
@@ -162,104 +241,114 @@ static Node *rewritePartition (Node *rewrittenTree)
 	// Default: use the join-based partTa; uncomment USE_EXISTS_PART_TA to switch
 	// #define USE_EXISTS_PART_TA
 	QueryOperator *partTaOp = (QueryOperator *) partTa;
-#ifdef USE_EXISTS_PART_TA
-	{
-		QueryOperator *rightHop  = (QueryOperator *) getNthOfListP(collectChildOps, 1);
-		QueryOperator *outerHop  = (QueryOperator *) copyObject(leftChild);
-		QueryOperator *innerHop  = (QueryOperator *) copyObject(rightHop);
-		outerHop->parents = NIL;
-		innerHop->parents = NIL;
+// #ifdef USE_EXISTS_PART_TA
+// 	{
+// 		QueryOperator *rightHop  = (QueryOperator *) getNthOfListP(collectChildOps, 1);
+// 		QueryOperator *outerHop  = (QueryOperator *) copyObject(leftChild);
+// 		QueryOperator *innerHop  = (QueryOperator *) copyObject(rightHop);
+// 		outerHop->parents = NIL;
+// 		innerHop->parents = NIL;
 
-		// f.x = t.z  (inner source = outer connecting node, correlated)
-		AttributeDef *outerZ_def = getAttrDefByPos(outerHop, 1);
-		AttributeDef *outerC_def = getAttrDefByPos(outerHop, 2);
-		AttributeDef *innerX_def = getAttrDefByPos(innerHop, 0);
-		AttributeDef *innerC_def = getAttrDefByPos(innerHop, 2);
-		Node *ec1 = (Node *) createOpExpr("=", LIST_MAKE(
-			createFullAttrReference(strdup(innerX_def->attrName), 0, 0, 0, innerX_def->dataType),
-			createFullAttrReference(strdup(outerZ_def->attrName), 0, 1, 1, outerZ_def->dataType)));
-		// f.c > t.c  (inner cost > outer cost, correlated)
-		Node *ec2 = (Node *) createOpExpr(">", LIST_MAKE(
-			createFullAttrReference(strdup(innerC_def->attrName), 0, 2, 0, innerC_def->dataType),
-			createFullAttrReference(strdup(outerC_def->attrName), 0, 2, 1, outerC_def->dataType)));
-		SelectionOperator *innerSel = createSelectionOp(AND_EXPRS(ec1, ec2), innerHop, NIL,
-														getAttrNames(innerHop->schema));
-		innerHop->parents = singleton((QueryOperator *) innerSel);
+// 		// f.x = t.z  (inner source = outer connecting node, correlated)
+// 		AttributeDef *outerZ_def = getAttrDefByPos(outerHop, 1);
+// 		AttributeDef *outerC_def = getAttrDefByPos(outerHop, 2);
+// 		AttributeDef *innerX_def = getAttrDefByPos(innerHop, 0);
+// 		AttributeDef *innerC_def = getAttrDefByPos(innerHop, 2);
+// 		Node *ec1 = (Node *) createOpExpr("=", LIST_MAKE(
+// 			createFullAttrReference(strdup(innerX_def->attrName), 0, 0, 0, innerX_def->dataType),
+// 			createFullAttrReference(strdup(outerZ_def->attrName), 0, 1, 1, outerZ_def->dataType)));
+// 		// f.c > t.c  (inner cost > outer cost, correlated)
+// 		Node *ec2 = (Node *) createOpExpr(">", LIST_MAKE(
+// 			createFullAttrReference(strdup(innerC_def->attrName), 0, 2, 0, innerC_def->dataType),
+// 			createFullAttrReference(strdup(outerC_def->attrName), 0, 2, 1, outerC_def->dataType)));
+// 		SelectionOperator *innerSel = createSelectionOp(AND_EXPRS(ec1, ec2), innerHop, NIL,
+// 														getAttrNames(innerHop->schema));
+// 		innerHop->parents = singleton((QueryOperator *) innerSel);
 
-		// NestingOperator(EXISTS): schema = outer attrs + nesting_eval_0 BOOL
-		List *nestAttrNames = getAttrNames(outerHop->schema);
-		List *nestDts       = getDataTypes(outerHop->schema);
-		nestAttrNames = appendToTailOfList(nestAttrNames, strdup("nesting_eval_0"));
-		nestDts       = appendToTailOfListInt(nestDts, DT_BOOL);
-		NestingOperator *nestOp = createNestingOp(NESTQ_EXISTS, NULL,
-												  LIST_MAKE(outerHop, (QueryOperator *) innerSel),
-												  NIL, nestAttrNames, nestDts);
-		outerHop->parents = singleton((QueryOperator *) nestOp);
-		((QueryOperator *) innerSel)->parents = singleton((QueryOperator *) nestOp);
+// 		// NestingOperator(EXISTS): schema = outer attrs + nesting_eval_0 BOOL
+// 		List *nestAttrNames = getAttrNames(outerHop->schema);
+// 		List *nestDts       = getDataTypes(outerHop->schema);
+// 		nestAttrNames = appendToTailOfList(nestAttrNames, strdup("nesting_eval_0"));
+// 		nestDts       = appendToTailOfListInt(nestDts, DT_BOOL);
+// 		NestingOperator *nestOp = createNestingOp(NESTQ_EXISTS, NULL,
+// 												  LIST_MAKE(outerHop, (QueryOperator *) innerSel),
+// 												  NIL, nestAttrNames, nestDts);
+// 		outerHop->parents = singleton((QueryOperator *) nestOp);
+// 		((QueryOperator *) innerSel)->parents = singleton((QueryOperator *) nestOp);
 
-		// Selection: WHERE nesting_eval_0 = TRUE
-		int nestEvalPos = LIST_LENGTH(outerHop->schema->attrDefs);
-		Node *existsCond = (Node *) createOpExpr("=", LIST_MAKE(
-			createFullAttrReference(strdup("nesting_eval_0"), 0, nestEvalPos, 0, DT_BOOL),
-			(Node *) createConstBool(TRUE)));
-		SelectionOperator *existsSel = createSelectionOp(existsCond, (QueryOperator *) nestOp,
-														 NIL, getAttrNames(((QueryOperator *) nestOp)->schema));
-		((QueryOperator *) nestOp)->parents = singleton((QueryOperator *) existsSel);
+// 		// Selection: WHERE nesting_eval_0 = TRUE
+// 		int nestEvalPos = LIST_LENGTH(outerHop->schema->attrDefs);
+// 		Node *existsCond = (Node *) createOpExpr("=", LIST_MAKE(
+// 			createFullAttrReference(strdup("nesting_eval_0"), 0, nestEvalPos, 0, DT_BOOL),
+// 			(Node *) createConstBool(TRUE)));
+// 		SelectionOperator *existsSel = createSelectionOp(existsCond, (QueryOperator *) nestOp,
+// 														 NIL, getAttrNames(((QueryOperator *) nestOp)->schema));
+// 		((QueryOperator *) nestOp)->parents = singleton((QueryOperator *) existsSel);
 
-		// Projection: keep only outer attrs, drop nesting_eval_0
-		List *existsProjExprs  = NIL;
-		List *existsAttrNames  = NIL;
-		int j = 0;
-		FOREACH(AttributeDef, ad, outerHop->schema->attrDefs)
-		{
-			existsProjExprs = appendToTailOfList(existsProjExprs,
-				createFullAttrReference(strdup(ad->attrName), 0, j, INVALID_ATTR, ad->dataType));
-			existsAttrNames = appendToTailOfList(existsAttrNames, strdup(ad->attrName));
-			j++;
-		}
-		ProjectionOperator *existsProj = createProjectionOp(existsProjExprs,
-															(QueryOperator *) existsSel,
-															NIL, existsAttrNames);
-		((QueryOperator *) existsSel)->parents = singleton((QueryOperator *) existsProj);
+// 		// Projection: keep only outer attrs, drop nesting_eval_0
+// 		List *existsProjExprs  = NIL;
+// 		List *existsAttrNames  = NIL;
+// 		int j = 0;
+// 		FOREACH(AttributeDef, ad, outerHop->schema->attrDefs)
+// 		{
+// 			existsProjExprs = appendToTailOfList(existsProjExprs,
+// 				createFullAttrReference(strdup(ad->attrName), 0, j, INVALID_ATTR, ad->dataType));
+// 			existsAttrNames = appendToTailOfList(existsAttrNames, strdup(ad->attrName));
+// 			j++;
+// 		}
+// 		ProjectionOperator *existsProj = createProjectionOp(existsProjExprs,
+// 															(QueryOperator *) existsSel,
+// 															NIL, existsAttrNames);
+// 		((QueryOperator *) existsSel)->parents = singleton((QueryOperator *) existsProj);
 
-		// DISTINCT
-		List *existsDupExprs = NIL;
-		j = 0;
-		FOREACH(AttributeDef, ad, ((QueryOperator *) existsProj)->schema->attrDefs)
-		{
-			existsDupExprs = appendToTailOfList(existsDupExprs,
-				createFullAttrReference(strdup(ad->attrName), 0, j, INVALID_ATTR, ad->dataType));
-			j++;
-		}
-		DuplicateRemoval *partTa_exists = createDuplicateRemovalOp(existsDupExprs,
-																   (QueryOperator *) existsProj,
-																   NIL, existsAttrNames);
-		((QueryOperator *) existsProj)->parents = singleton((QueryOperator *) partTa_exists);
-		SET_BOOL_STRING_PROP((Node *) partTa_exists, PROP_MATERIALIZE);
-		INFO_OP_LOG("partTa_exists operator tree:", (Node *) partTa_exists);
+// 		// DISTINCT
+// 		List *existsDupExprs = NIL;
+// 		j = 0;
+// 		FOREACH(AttributeDef, ad, ((QueryOperator *) existsProj)->schema->attrDefs)
+// 		{
+// 			existsDupExprs = appendToTailOfList(existsDupExprs,
+// 				createFullAttrReference(strdup(ad->attrName), 0, j, INVALID_ATTR, ad->dataType));
+// 			j++;
+// 		}
+// 		DuplicateRemoval *partTa_exists = createDuplicateRemovalOp(existsDupExprs,
+// 																   (QueryOperator *) existsProj,
+// 																   NIL, existsAttrNames);
+// 		((QueryOperator *) existsProj)->parents = singleton((QueryOperator *) partTa_exists);
+// 		SET_BOOL_STRING_PROP((Node *) partTa_exists, PROP_MATERIALIZE);
+// 		INFO_OP_LOG("partTa_exists operator tree:", (Node *) partTa_exists);
 
-		partTaOp = (QueryOperator *) partTa_exists;
-	}
-	return (Node *) partTaOp;
-#endif
+// 		partTaOp = (QueryOperator *) partTa_exists;
+// 	}
+// 	return (Node *) partTaOp;
+// #endif
 
 	// --- Build Fta ---
-	// SELECT *, count(Z) OVER (PARTITION BY C_0_0, Z) AS numofz
-	// FROM partTa  (or partTa_exists when USE_EXISTS_PART_TA is defined)
+	// SELECT *, count(za) OVER (PARTITION BY all-except-cost) AS numofza
+	// FROM partTa
 
-	// count(Z) — Z is position 1 in partTa schema (hardcoded the position based, use join attributes with nLeft)
-	AttributeDef *zDef = getAttrDefByPos(partTaOp, 1);
-	AttributeReference *zRef = createFullAttrReference(
-		strdup(zDef->attrName), 0, 1, INVALID_ATTR, zDef->dataType);
-	Node *cntFunc = (Node *) createFunctionCall(strdup("count"), singleton(zRef));
+	// Derive za position from the join equality condition — no hardcoded position.
+	// Try the join's own condition first; fall back to the selection above in case
+	// the system uses a cross-product join with the equality in the WHERE clause.
+	int leftZPos = findEqAttrPos(((JoinOperator *) joinOp)->cond, 0);
+	if (leftZPos == INVALID_ATTR)
+		leftZPos = findEqAttrPosFromSel(((SelectionOperator *) op)->cond, nLeft, 0);
+	DEBUG_LOG("leftZPos = %d", leftZPos);
+	AttributeDef *zaDef = getAttrDefByPos(partTaOp, leftZPos);
+	AttributeReference *zaRef = createFullAttrReference(
+		strdup(zaDef->attrName), 0, leftZPos, INVALID_ATTR, zaDef->dataType);
+	Node *cntFunc = (Node *) createFunctionCall(strdup("count"), singleton(zaRef));
 
-	// PARTITION BY C_0_0 (pos 0), Z (pos 1)
-	AttributeDef *xDef = getAttrDefByPos(partTaOp, 0);
-	List *partitionBy = LIST_MAKE(
-		createFullAttrReference(strdup(xDef->attrName),  0, 0, INVALID_ATTR, xDef->dataType),
-		createFullAttrReference(strdup(zDef->attrName), 0, 1, INVALID_ATTR, zDef->dataType)
-	);
-	// redundant attr ref, re-check
+	// PARTITION BY all attrs of partTa except the last (cost), positions from schema iteration
+	int nPartTa = LIST_LENGTH(partTaOp->schema->attrDefs);
+	List *partitionBy = NIL;
+	i = 0;
+	FOREACH(AttributeDef, ad, partTaOp->schema->attrDefs)
+	{
+		if (i < nPartTa - 1)
+			partitionBy = appendToTailOfList(partitionBy,
+				createFullAttrReference(strdup(ad->attrName), 0, i, INVALID_ATTR, ad->dataType));
+		i++;
+	}
 
 	WindowOperator *fta = createWindowOp(
 		cntFunc,
@@ -274,7 +363,101 @@ static Node *rewritePartition (Node *rewrittenTree)
 
 	INFO_OP_LOG("Fta operator tree:", (Node *) fta);
 
+#ifdef TEST_FTA
 	return (Node *) fta;
+#endif
+
+	// --- Build partTb ---
+	// Mirror of partTa: project right-side attributes (positions nLeft..total-1)
+	// from the same Selection -> Join subtree, then wrap with DISTINCT.
+
+	// Copy op (Selection → Join subtree) so partTb has an independent subtree.
+	// Sharing op with partTa causes the SQL serializer to see op as a shared node
+	// and pull partTa's CTE into the ftb output.
+	QueryOperator *opCopy = (QueryOperator *) copyObject(op);
+	opCopy->parents = NIL;
+
+	List *projExprsB = NIL;
+	List *attrNamesB = NIL;
+	i = 0;
+	FOREACH(AttributeDef, ad, joinOp->schema->attrDefs)
+	{
+		if (i >= nLeft)
+		{
+			projExprsB = appendToTailOfList(projExprsB,
+				createFullAttrReference(strdup(ad->attrName), 0, i,
+										INVALID_ATTR, ad->dataType));
+			attrNamesB = appendToTailOfList(attrNamesB, strdup(ad->attrName));
+		}
+		i++;
+	}
+
+	ProjectionOperator *partTbProj = createProjectionOp(
+		projExprsB, opCopy, NIL, attrNamesB);
+	opCopy->parents = singleton((QueryOperator *) partTbProj);
+
+	List *dupAttrExprsB = NIL;
+	i = 0;
+	FOREACH(AttributeDef, ad, ((QueryOperator *) partTbProj)->schema->attrDefs)
+	{
+		dupAttrExprsB = appendToTailOfList(dupAttrExprsB,
+			createFullAttrReference(strdup(ad->attrName), 0, i,
+									INVALID_ATTR, ad->dataType));
+		i++;
+	}
+	DuplicateRemoval *partTb = createDuplicateRemovalOp(
+		dupAttrExprsB, (QueryOperator *) partTbProj, NIL, attrNamesB);
+	((QueryOperator *) partTbProj)->parents = singleton((QueryOperator *) partTb);
+	SET_BOOL_STRING_PROP((Node *) partTb, PROP_MATERIALIZE);
+	INFO_OP_LOG("partTb operator tree:", (Node *) partTb);
+
+	QueryOperator *partTbOp = (QueryOperator *) partTb;
+
+	// --- Build Ftb ---
+	// SELECT *, count(zb) OVER (PARTITION BY y, zb) AS numofzb
+	// FROM partTb
+
+	// Derive zb position from the join equality condition — no hardcoded position.
+	// Same two-level lookup as for leftZPos above.
+	int rightZPos = findEqAttrPos(((JoinOperator *) joinOp)->cond, 1);
+	if (rightZPos == INVALID_ATTR)
+		rightZPos = findEqAttrPosFromSel(((SelectionOperator *) op)->cond, nLeft, 1);
+	DEBUG_LOG("rightZPos = %d", rightZPos);
+	AttributeDef *zbDef = getAttrDefByPos(partTbOp, rightZPos);
+	AttributeReference *zbRef = createFullAttrReference(
+		strdup(zbDef->attrName), 0, rightZPos, INVALID_ATTR, zbDef->dataType);
+	Node *cntFuncB = (Node *) createFunctionCall(strdup("count"), singleton(zbRef));
+
+	// PARTITION BY all attrs of partTb except the last (cost), positions from schema iteration
+	int nPartTb = LIST_LENGTH(partTbOp->schema->attrDefs);
+	List *partitionByB = NIL;
+	int posB = 0;
+	FOREACH(AttributeDef, ad, partTbOp->schema->attrDefs)
+	{
+		if (posB < nPartTb - 1)
+			partitionByB = appendToTailOfList(partitionByB,
+				createFullAttrReference(strdup(ad->attrName), 0, posB, INVALID_ATTR, ad->dataType));
+		posB++;
+	}
+
+	WindowOperator *ftb = createWindowOp(
+		cntFuncB,
+		partitionByB,
+		NIL,
+		NULL,
+		strdup("numofzb"),
+		partTbOp,
+		NIL
+	);
+	addParent(partTbOp, (QueryOperator *) ftb);
+
+	INFO_OP_LOG("Ftb operator tree:", (Node *) ftb);
+
+#ifdef TEST_FTB
+	return (Node *) ftb;
+#endif
+
+	return (Node *) LIST_MAKE(fta, ftb);
 }
 
 
