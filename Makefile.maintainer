@@ -1,4 +1,4 @@
-LIBTOOLIZE:=glibtoolize
+LIBTOOLIZE:=libtoolize
 AUTORECONF:=autoreconf
 MAIN_MAKEFILE:=./Makefile
 

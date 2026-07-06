@@ -1,11 +1,11 @@
 /*-----------------------------------------------------------------------------
  *
  * sampling_main.c
- *			  
- *		
+ *
+ *
  *		AUTHOR: seokki
  *
- *		
+ *
  *
  *-----------------------------------------------------------------------------
  */
@@ -32,12 +32,11 @@
 #include "provenance_rewriter/summarization_rewrites/sampling_main.h"
 
 #define RESULT_WO_ATTR "numOfdistOnoc"
-// Uncomment exactly one to test a specific stage in isolation:
-// #define TEST_PART_TA_ONLY   // return after partTa
-// #define TEST_FTA             // return after Fta
-#define TEST_FTB             // return after Ftb
 
 static Node *rewritePartition (Node *rewrittenTree);
+static Node *buildPartTa_Fta (QueryOperator *op, int nLeft, int leftZPos);
+static Node *buildPartTb_Ftb (QueryOperator *op, int nLeft, int rightZPos);
+static Node *buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos);
 static List *children_Of_Join (QueryOperator *op, List *collectChildOps);
 
 
@@ -71,24 +70,14 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 		}
 	}
 
-//	DEBUG_LOG("sample size: %f", sampleSize);
-//	result = (Node *) rewrittenTree;
-//	return result;
-
 	DEBUG_LOG("sampling options are: qType: %s, sample size: %f",
 			  ProvQuestionToString(qType), sampleSize);
 
-//	if(qType == PROV_Q_WHY)
-//	{
-
-	//TODO: implement the sampling algorithm
 	Node *rewrittenHead = (Node *) getHeadOfListP((List *) rewrittenTree);
 	INFO_OP_LOG("input rewritten trees:", rewrittenTree);
 
-	//Step1: partitioning
 	rewrittenTreePart = rewritePartition(rewrittenHead);
 	result = (Node *) rewrittenTreePart;
-//	}
 
 	return result;
 }
@@ -130,46 +119,6 @@ findEqAttrPos (Node *cond, int fromClauseItem)
 	return INVALID_ATTR;
 }
 
-/*
- * Fallback for when the join equality lives in the Selection above (cross-product
- * join).  In that context every AttributeReference has fromClauseItem=0; we use
- * attrPosition vs nLeft to tell left from right.
- *   side 0 → left  child (attrPos < nLeft)  → returns attrPos
- *   side 1 → right child (attrPos >= nLeft) → returns attrPos - nLeft
- */
-static int
-findEqAttrPosFromSel (Node *cond, int nLeft, int side)
-{
-	if (cond == NULL || !isA(cond, Operator))
-		return INVALID_ATTR;
-
-	Operator *oper = (Operator *) cond;
-	if (streq(oper->name, "="))
-	{
-		FOREACH(Node, arg, oper->args)
-		{
-			if (isA(arg, AttributeReference))
-			{
-				AttributeReference *ref = (AttributeReference *) arg;
-				if (side == 0 && ref->attrPosition < nLeft)
-					return ref->attrPosition;
-				if (side == 1 && ref->attrPosition >= nLeft)
-					return ref->attrPosition - nLeft;
-			}
-		}
-	}
-	else
-	{
-		FOREACH(Node, arg, oper->args)
-		{
-			int pos = findEqAttrPosFromSel(arg, nLeft, side);
-			if (pos != INVALID_ATTR)
-				return pos;
-		}
-	}
-	return INVALID_ATTR;
-}
-
 
 static Node *rewritePartition (Node *rewrittenTree)
 {
@@ -191,18 +140,34 @@ static Node *rewritePartition (Node *rewrittenTree)
 	QueryOperator *leftChild = (QueryOperator *) getHeadOfListP(collectChildOps);
 	int nLeft = LIST_LENGTH(leftChild->schema->attrDefs);
 
+	// Derive join-equality attribute positions for both sides.
+	int leftZPos  = findEqAttrPos(((JoinOperator *) joinOp)->cond, 0);
+	int rightZPos = findEqAttrPos(((JoinOperator *) joinOp)->cond, 1);
+
+	Node *fta = buildPartTa_Fta(op, nLeft, leftZPos);
+	Node *ftb = buildPartTb_Ftb(op, nLeft, rightZPos);
+
+	return buildProvenance(fta, ftb, leftZPos, rightZPos);
+}
+
+
+/* -------------------------------------------------------------------------
+ * partTa + Fta
+ * ------------------------------------------------------------------------- */
+
+static Node *
+buildPartTa_Fta (QueryOperator *op, int nLeft, int leftZPos)
+{
 	// --- Build partTa ---
 	// Project only the left-side attributes (positions 0..nLeft-1) from the
-	// join output, then wrap with DISTINCT.  The Selection (op) and Join
-	// (joinOp) are reused as-is underneath.
-
+	// join output, then wrap with DISTINCT.
 
 	List *projExprs = NIL;
 	List *attrNames = NIL;
 	int i = 0;
-	FOREACH(AttributeDef, ad, joinOp->schema->attrDefs)
+	FOREACH(AttributeDef, ad, op->schema->attrDefs)
 	{
-		if (i < nLeft) // Taking X, Z, C1 into projExprs
+		if (i < nLeft)
 		{
 			projExprs = appendToTailOfList(projExprs,
 				createFullAttrReference(strdup(ad->attrName), 0, i,
@@ -233,10 +198,6 @@ static Node *rewritePartition (Node *rewrittenTree)
 	// CTE for partTa to be referenced by Fta
 	SET_BOOL_STRING_PROP((Node *) partTa, PROP_MATERIALIZE);
 	INFO_OP_LOG("partTa operator tree:", (Node *) partTa);
-
-#ifdef TEST_PART_TA_ONLY
-	return (Node *) partTa;
-#endif
 
 	// Default: use the join-based partTa; uncomment USE_EXISTS_PART_TA to switch
 	// #define USE_EXISTS_PART_TA
@@ -326,19 +287,13 @@ static Node *rewritePartition (Node *rewrittenTree)
 	// SELECT *, count(za) OVER (PARTITION BY all-except-cost) AS numofza
 	// FROM partTa
 
-	// Derive za position from the join equality condition — no hardcoded position.
-	// Try the join's own condition first; fall back to the selection above in case
-	// the system uses a cross-product join with the equality in the WHERE clause.
-	int leftZPos = findEqAttrPos(((JoinOperator *) joinOp)->cond, 0);
-	if (leftZPos == INVALID_ATTR)
-		leftZPos = findEqAttrPosFromSel(((SelectionOperator *) op)->cond, nLeft, 0);
 	DEBUG_LOG("leftZPos = %d", leftZPos);
 	AttributeDef *zaDef = getAttrDefByPos(partTaOp, leftZPos);
 	AttributeReference *zaRef = createFullAttrReference(
 		strdup(zaDef->attrName), 0, leftZPos, INVALID_ATTR, zaDef->dataType);
 	Node *cntFunc = (Node *) createFunctionCall(strdup("count"), singleton(zaRef));
 
-	// PARTITION BY all attrs of partTa except the last (cost), positions from schema iteration
+	// PARTITION BY all attrs of partTa except the last (cost)
 	int nPartTa = LIST_LENGTH(partTaOp->schema->attrDefs);
 	List *partitionBy = NIL;
 	i = 0;
@@ -363,24 +318,31 @@ static Node *rewritePartition (Node *rewrittenTree)
 
 	INFO_OP_LOG("Fta operator tree:", (Node *) fta);
 
-#ifdef TEST_FTA
 	return (Node *) fta;
-#endif
+}
 
-	// --- Build partTb ---
-	// Mirror of partTa: project right-side attributes (positions nLeft..total-1)
-	// from the same Selection -> Join subtree, then wrap with DISTINCT.
 
+/* -------------------------------------------------------------------------
+ * partTb + Ftb
+ * ------------------------------------------------------------------------- */
+
+static Node *
+buildPartTb_Ftb (QueryOperator *op, int nLeft, int rightZPos)
+{
 	// Copy op (Selection → Join subtree) so partTb has an independent subtree.
 	// Sharing op with partTa causes the SQL serializer to see op as a shared node
 	// and pull partTa's CTE into the ftb output.
 	QueryOperator *opCopy = (QueryOperator *) copyObject(op);
 	opCopy->parents = NIL;
 
+	// --- Build partTb ---
+	// Project only the right-side attributes (positions nLeft..total-1) from the
+	// join output, then wrap with DISTINCT.
+
 	List *projExprsB = NIL;
 	List *attrNamesB = NIL;
-	i = 0;
-	FOREACH(AttributeDef, ad, joinOp->schema->attrDefs)
+	int i = 0;
+	FOREACH(AttributeDef, ad, opCopy->schema->attrDefs)
 	{
 		if (i >= nLeft)
 		{
@@ -405,30 +367,26 @@ static Node *rewritePartition (Node *rewrittenTree)
 									INVALID_ATTR, ad->dataType));
 		i++;
 	}
+
 	DuplicateRemoval *partTb = createDuplicateRemovalOp(
 		dupAttrExprsB, (QueryOperator *) partTbProj, NIL, attrNamesB);
 	((QueryOperator *) partTbProj)->parents = singleton((QueryOperator *) partTb);
 	SET_BOOL_STRING_PROP((Node *) partTb, PROP_MATERIALIZE);
 	INFO_OP_LOG("partTb operator tree:", (Node *) partTb);
 
-	QueryOperator *partTbOp = (QueryOperator *) partTb;
-
 	// --- Build Ftb ---
-	// SELECT *, count(zb) OVER (PARTITION BY y, zb) AS numofzb
+	// SELECT *, count(zb) OVER (PARTITION BY all-except-cost) AS numofzb
 	// FROM partTb
 
-	// Derive zb position from the join equality condition — no hardcoded position.
-	// Same two-level lookup as for leftZPos above.
-	int rightZPos = findEqAttrPos(((JoinOperator *) joinOp)->cond, 1);
-	if (rightZPos == INVALID_ATTR)
-		rightZPos = findEqAttrPosFromSel(((SelectionOperator *) op)->cond, nLeft, 1);
+	QueryOperator *partTbOp = (QueryOperator *) partTb;
+
 	DEBUG_LOG("rightZPos = %d", rightZPos);
 	AttributeDef *zbDef = getAttrDefByPos(partTbOp, rightZPos);
 	AttributeReference *zbRef = createFullAttrReference(
 		strdup(zbDef->attrName), 0, rightZPos, INVALID_ATTR, zbDef->dataType);
 	Node *cntFuncB = (Node *) createFunctionCall(strdup("count"), singleton(zbRef));
 
-	// PARTITION BY all attrs of partTb except the last (cost), positions from schema iteration
+	// PARTITION BY all attrs of partTb except the last (cost)
 	int nPartTb = LIST_LENGTH(partTbOp->schema->attrDefs);
 	List *partitionByB = NIL;
 	int posB = 0;
@@ -453,11 +411,279 @@ static Node *rewritePartition (Node *rewrittenTree)
 
 	INFO_OP_LOG("Ftb operator tree:", (Node *) ftb);
 
-#ifdef TEST_FTB
 	return (Node *) ftb;
-#endif
+}
 
-	return (Node *) LIST_MAKE(fta, ftb);
+
+/* -------------------------------------------------------------------------
+ * Joinsize + temp1 + Stp + Tp + Ssp + Ssd + Wt
+ * -------------------------------------------------------------------------
+ * Joinsize: DISTINCT zb, y, cb, numofzb, (numofza * numofzb) AS joinsize
+ *           FROM Fta JOIN Ftb ON Fta.za = Ftb.zb   -- materialized
+ * temp1:    SELECT *, joinsize / numofzb AS temp1   FROM Joinsize
+ * Stp:      SELECT *, SUM(temp1) OVER (PARTITION BY y) AS stp   FROM temp1
+ * Tp:       SELECT *, SUM(temp1) OVER() AS totalprov   FROM Stp
+ * Ssp:      SELECT *, (stp / totalprov) * 3.0 AS ssp   FROM Tp
+ * Ssd:      SELECT *, (joinsize * ssp) / stp AS ssd   FROM Ssp
+ * Wt:       SELECT *, ssd / joinsize AS weight   FROM Ssd  (returned directly)
+ * ------------------------------------------------------------------------- */
+
+static Node *
+buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
+{
+	QueryOperator *fta = (QueryOperator *) ftaNode;
+	QueryOperator *ftb = (QueryOperator *) ftbNode;
+	int nFta = LIST_LENGTH(fta->schema->attrDefs);
+	int nFtb = LIST_LENGTH(ftb->schema->attrDefs);
+
+	// --- Build Joinsize ---
+	// Join condition: Fta.za (leftZPos, fromClauseItem=0) = Ftb.zb (rightZPos, fromClauseItem=1)
+	AttributeDef *zaJoinDef = getAttrDefByPos(fta, leftZPos);
+	AttributeDef *zbJoinDef = getAttrDefByPos(ftb, rightZPos);
+	Node *joinCond = (Node *) createOpExpr("=", LIST_MAKE(
+		createFullAttrReference(strdup(zaJoinDef->attrName), 0, leftZPos,  INVALID_ATTR, zaJoinDef->dataType),
+		createFullAttrReference(strdup(zbJoinDef->attrName), 1, rightZPos, INVALID_ATTR, zbJoinDef->dataType)));
+
+	// Combined schema: Fta attrs then Ftb attrs
+	List *joinAttrNames = NIL;
+	FOREACH(AttributeDef, ad, fta->schema->attrDefs)
+		joinAttrNames = appendToTailOfList(joinAttrNames, strdup(ad->attrName));
+	FOREACH(AttributeDef, ad, ftb->schema->attrDefs)
+		joinAttrNames = appendToTailOfList(joinAttrNames, strdup(ad->attrName));
+
+	JoinOperator *jsJoin = createJoinOp(JOIN_INNER, joinCond,
+		LIST_MAKE(fta, ftb), NIL, joinAttrNames);
+	addParent(fta, (QueryOperator *) jsJoin);
+	addParent(ftb, (QueryOperator *) jsJoin);
+
+	// Projection: all Ftb attrs (zb, y, cb, numofzb) + numofza * numofzb AS joinsize
+	// numofza = last Fta attr in join output (pos nFta-1)
+	// numofzb = last Ftb attr in join output (pos nFta+nFtb-1)
+	int numofzaPosInJoin = nFta - 1;
+	int numofzbPosInJoin = nFta + nFtb - 1;
+
+	List *jsProjExprs = NIL;
+	List *jsAttrNames = NIL;
+	int idx = 0;
+	FOREACH(AttributeDef, ad, ((QueryOperator *) jsJoin)->schema->attrDefs)
+	{
+		if (idx >= nFta)  // skip Fta attrs; keep Ftb: zb, y, cb, numofzb
+		{
+			jsProjExprs = appendToTailOfList(jsProjExprs,
+				createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+			jsAttrNames = appendToTailOfList(jsAttrNames, strdup(ad->attrName));
+		}
+		idx++;
+	}
+
+	// numofza * numofzb AS joinsize
+	AttributeDef *numofzaDef = getAttrDefByPos((QueryOperator *) jsJoin, numofzaPosInJoin);
+	AttributeDef *numofzbDef = getAttrDefByPos((QueryOperator *) jsJoin, numofzbPosInJoin);
+	Node *joinsizeExpr = (Node *) createOpExpr("*", LIST_MAKE(
+		createFullAttrReference(strdup(numofzaDef->attrName), 0, numofzaPosInJoin, INVALID_ATTR, numofzaDef->dataType),
+		createFullAttrReference(strdup(numofzbDef->attrName), 0, numofzbPosInJoin, INVALID_ATTR, numofzbDef->dataType)));
+	jsProjExprs = appendToTailOfList(jsProjExprs, joinsizeExpr);
+	jsAttrNames = appendToTailOfList(jsAttrNames, strdup("joinsize"));
+
+	ProjectionOperator *jsProjOp = createProjectionOp(
+		jsProjExprs, (QueryOperator *) jsJoin, NIL, jsAttrNames);
+	((QueryOperator *) jsJoin)->parents = singleton((QueryOperator *) jsProjOp);
+
+	// DISTINCT → materialize
+	List *jsDupExprs = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, ((QueryOperator *) jsProjOp)->schema->attrDefs)
+	{
+		jsDupExprs = appendToTailOfList(jsDupExprs,
+			createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+		idx++;
+	}
+	DuplicateRemoval *joinsize = createDuplicateRemovalOp(
+		jsDupExprs, (QueryOperator *) jsProjOp, NIL, jsAttrNames);
+	((QueryOperator *) jsProjOp)->parents = singleton((QueryOperator *) joinsize);
+	SET_BOOL_STRING_PROP((Node *) joinsize, PROP_MATERIALIZE);
+	INFO_OP_LOG("Joinsize operator tree:", (Node *) joinsize);
+
+	// --- Build temp1 ---
+	// SELECT *, joinsize / numofzb AS temp1  FROM Joinsize
+	// Joinsize schema: [zb(0), y(1), cb(2), numofzb(nFtb-1), joinsize(nFtb)]
+	QueryOperator *joinsizeOp = (QueryOperator *) joinsize;
+	int numofzbInJs  = nFtb - 1;  // numofzb position in Joinsize
+	int joinsizeInJs = nFtb;      // joinsize position in Joinsize
+
+	List *t1ProjExprs = NIL;
+	List *t1AttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, joinsizeOp->schema->attrDefs)
+	{
+		t1ProjExprs = appendToTailOfList(t1ProjExprs,
+			createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+		t1AttrNames = appendToTailOfList(t1AttrNames, strdup(ad->attrName));
+		idx++;
+	}
+
+	// joinsize / numofzb AS temp1
+	AttributeDef *numofzbInJsDef  = getAttrDefByPos(joinsizeOp, numofzbInJs);
+	AttributeDef *joinsizeInJsDef = getAttrDefByPos(joinsizeOp, joinsizeInJs);
+	Node *temp1Expr = (Node *) createOpExpr("/", LIST_MAKE(
+		createFullAttrReference(strdup(joinsizeInJsDef->attrName), 0, joinsizeInJs, INVALID_ATTR, joinsizeInJsDef->dataType),
+		createFullAttrReference(strdup(numofzbInJsDef->attrName),  0, numofzbInJs,  INVALID_ATTR, numofzbInJsDef->dataType)));
+	t1ProjExprs = appendToTailOfList(t1ProjExprs, temp1Expr);
+	t1AttrNames = appendToTailOfList(t1AttrNames, strdup("temp1"));
+
+	ProjectionOperator *temp1 = createProjectionOp(t1ProjExprs, joinsizeOp, NIL, t1AttrNames);
+	joinsizeOp->parents = singleton((QueryOperator *) temp1);
+	INFO_OP_LOG("temp1 operator tree:", (Node *) temp1);
+
+	// --- Build Stp ---
+	// SELECT *, SUM(temp1) OVER (PARTITION BY y) AS stp FROM temp1
+	// temp1 schema: [zb(0), y(rightZPos+1), cb, numofzb, joinsize, temp1]
+	QueryOperator *temp1Op = (QueryOperator *) temp1;
+	int nTemp1 = LIST_LENGTH(temp1Op->schema->attrDefs);
+	int temp1ColPos = nTemp1 - 1;   // temp1 column is the last attr
+	int yPos = rightZPos + 1;       // y is right after zb in the Ftb portion
+
+	AttributeDef *temp1ColDef = getAttrDefByPos(temp1Op, temp1ColPos);
+	Node *sumTemp1 = (Node *) createFunctionCall(strdup("sum"),
+		singleton(createFullAttrReference(strdup(temp1ColDef->attrName), 0,
+			temp1ColPos, INVALID_ATTR, temp1ColDef->dataType)));
+
+	AttributeDef *yDef = getAttrDefByPos(temp1Op, yPos);
+	List *stpPartBy = singleton(
+		createFullAttrReference(strdup(yDef->attrName), 0, yPos, INVALID_ATTR, yDef->dataType));
+
+	WindowOperator *stp = createWindowOp(
+		sumTemp1,
+		stpPartBy,
+		NIL,   // no ORDER BY
+		NULL,  // no frame
+		strdup("stp"),
+		temp1Op,
+		NIL
+	);
+	addParent(temp1Op, (QueryOperator *) stp);
+	INFO_OP_LOG("Stp operator tree:", (Node *) stp);
+
+	// --- Build Tp ---
+	// SELECT *, SUM(temp1) OVER() AS totalprov FROM Stp
+	// temp1 column is still at position temp1ColPos in Stp's schema
+	QueryOperator *stpOp = (QueryOperator *) stp;
+
+	AttributeDef *temp1InStpDef = getAttrDefByPos(stpOp, temp1ColPos);
+	Node *sumTemp1ForTp = (Node *) createFunctionCall(strdup("sum"),
+		singleton(createFullAttrReference(strdup(temp1InStpDef->attrName), 0,
+			temp1ColPos, INVALID_ATTR, temp1InStpDef->dataType)));
+
+	WindowOperator *tp = createWindowOp(
+		sumTemp1ForTp,
+		NIL,   // no PARTITION BY (OVER() = entire table)
+		NIL,   // no ORDER BY
+		NULL,  // no frame
+		strdup("totalprov"),
+		stpOp,
+		NIL
+	);
+	addParent(stpOp, (QueryOperator *) tp);
+	INFO_OP_LOG("Tp operator tree:", (Node *) tp);
+
+	// --- Build Ssp ---
+	// SELECT *, (stp / totalprov) * 3.0 AS ssp FROM Tp
+	// Tp schema: [..., temp1(temp1ColPos), stp(temp1ColPos+1), totalprov(nTp-1)]
+	QueryOperator *tpOp = (QueryOperator *) tp;
+	int nTp              = LIST_LENGTH(tpOp->schema->attrDefs);
+	int stpPosInTp       = temp1ColPos + 1;  // stp appended after temp1 by Stp
+	int totalprovPos     = nTp - 1;          // totalprov is the last attr of Tp
+
+	List *sspProjExprs = NIL;
+	List *sspAttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, tpOp->schema->attrDefs)
+	{
+		sspProjExprs = appendToTailOfList(sspProjExprs,
+			createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+		sspAttrNames = appendToTailOfList(sspAttrNames, strdup(ad->attrName));
+		idx++;
+	}
+
+	AttributeDef *stpDef       = getAttrDefByPos(tpOp, stpPosInTp);
+	AttributeDef *totalprovDef = getAttrDefByPos(tpOp, totalprovPos);
+	// (stp / totalprov) * 3.0, currently 3.0 is hard-coded based on the given SQL query, but it can be changed to a parameter if needed.
+	Node *sspExpr = (Node *) createOpExpr("*", LIST_MAKE(
+		createOpExpr("/", LIST_MAKE(
+			createFullAttrReference(strdup(stpDef->attrName),       0, stpPosInTp,  INVALID_ATTR, stpDef->dataType),
+			createFullAttrReference(strdup(totalprovDef->attrName), 0, totalprovPos, INVALID_ATTR, totalprovDef->dataType))),
+		(Node *) createConstFloat(3.0)));
+	sspProjExprs = appendToTailOfList(sspProjExprs, sspExpr);
+	sspAttrNames = appendToTailOfList(sspAttrNames, strdup("ssp"));
+
+	ProjectionOperator *ssp = createProjectionOp(sspProjExprs, tpOp, NIL, sspAttrNames);
+	tpOp->parents = singleton((QueryOperator *) ssp);
+	INFO_OP_LOG("Ssp operator tree:", (Node *) ssp);
+
+	// --- Build Ssd ---
+	// SELECT *, (joinsize * ssp) / stp AS ssd FROM Ssp
+	// Ssp schema = Tp schema + ssp; ssp is at pos nTp
+	QueryOperator *sspOp  = (QueryOperator *) ssp;
+	int sspColPos         = nTp;   // ssp appended as last column
+
+	AttributeDef *joinsizeInSspDef = getAttrDefByPos(sspOp, nFtb);        // joinsize preserved at nFtb
+	AttributeDef *sspColDef        = getAttrDefByPos(sspOp, sspColPos);
+	AttributeDef *stpInSspDef      = getAttrDefByPos(sspOp, stpPosInTp);  // stp position unchanged
+
+	List *ssdProjExprs = NIL;
+	List *ssdAttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, sspOp->schema->attrDefs)
+	{
+		ssdProjExprs = appendToTailOfList(ssdProjExprs,
+			createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+		ssdAttrNames = appendToTailOfList(ssdAttrNames, strdup(ad->attrName));
+		idx++;
+	}
+
+	Node *ssdExpr = (Node *) createOpExpr("/", LIST_MAKE(
+		createOpExpr("*", LIST_MAKE(
+			createFullAttrReference(strdup(joinsizeInSspDef->attrName), 0, nFtb,       INVALID_ATTR, joinsizeInSspDef->dataType),
+			createFullAttrReference(strdup(sspColDef->attrName),        0, sspColPos,  INVALID_ATTR, sspColDef->dataType))),
+		createFullAttrReference(strdup(stpInSspDef->attrName),          0, stpPosInTp, INVALID_ATTR, stpInSspDef->dataType)));
+	ssdProjExprs = appendToTailOfList(ssdProjExprs, ssdExpr);
+	ssdAttrNames = appendToTailOfList(ssdAttrNames, strdup("ssd"));
+
+	ProjectionOperator *ssd = createProjectionOp(ssdProjExprs, sspOp, NIL, ssdAttrNames);
+	sspOp->parents = singleton((QueryOperator *) ssd);
+	INFO_OP_LOG("Ssd operator tree:", (Node *) ssd);
+
+	// return (Node *) ssd;
+
+	// --- Build Wt ---
+	// SELECT *, (ssd / joinsize) AS weight FROM Ssd
+	QueryOperator *ssdOp = (QueryOperator *) ssd;
+	int ssdColPos        = nTp + 1;
+	AttributeDef *ssdColDef        = getAttrDefByPos(ssdOp, ssdColPos);
+	AttributeDef *joinsizeInSsdDef = getAttrDefByPos(ssdOp, nFtb);
+	joinsizeInSsdDef->dataType     = DT_FLOAT;
+	List *wtProjExprs = NIL;
+	List *wtAttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, ssdOp->schema->attrDefs)
+	{
+		wtProjExprs = appendToTailOfList(wtProjExprs,
+			createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+		wtAttrNames = appendToTailOfList(wtAttrNames, strdup(ad->attrName));
+		idx++;
+	}
+	Node *joinsizeAsFloat = (Node *) createOpExpr("*", LIST_MAKE(
+		createFullAttrReference(strdup(joinsizeInSsdDef->attrName), 0, nFtb, INVALID_ATTR, DT_LONG),
+		(Node *) createConstFloat(1.0)));
+	Node *wtExpr = (Node *) createOpExpr("/", LIST_MAKE(
+		createFullAttrReference(strdup(ssdColDef->attrName), 0, ssdColPos, INVALID_ATTR, DT_FLOAT),
+		joinsizeAsFloat));
+	wtProjExprs = appendToTailOfList(wtProjExprs, wtExpr);
+	wtAttrNames = appendToTailOfList(wtAttrNames, strdup("weight"));
+	ProjectionOperator *wt = createProjectionOp(wtProjExprs, ssdOp, NIL, wtAttrNames);
+	ssdOp->parents = singleton((QueryOperator *) wt);
+	INFO_OP_LOG("Wt operator tree:", (Node *) wt);
+	return (Node *) wt;
 }
 
 
@@ -481,5 +707,3 @@ static List *children_Of_Join(QueryOperator *op, List *collectChildOps)
 
 	return collectChildOps;
 }
-
-
