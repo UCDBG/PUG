@@ -63,7 +63,7 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 				{
 					char *key = STRING_VALUE(kv->key);
 
-					if(streq(key,PROP_SUMMARIZATION_SAMPLE))
+					if(streq(key,PROP_SUMMARIZATION_SAMPLE)) // place to 58 since we don't do summarization
 						sampleSize = INT_VALUE(kv->value);
 				}
 			}
@@ -530,6 +530,7 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
 		createFullAttrReference(strdup(numofzbInJsDef->attrName),  0, numofzbInJs,  INVALID_ATTR, numofzbInJsDef->dataType)));
 	t1ProjExprs = appendToTailOfList(t1ProjExprs, temp1Expr);
 	t1AttrNames = appendToTailOfList(t1AttrNames, strdup("temp1"));
+	// currently bigint / bigint --> integer division truncates (5/3 --> 1 not 1.666)
 
 	ProjectionOperator *temp1 = createProjectionOp(t1ProjExprs, joinsizeOp, NIL, t1AttrNames);
 	joinsizeOp->parents = singleton((QueryOperator *) temp1);
@@ -607,12 +608,12 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
 
 	AttributeDef *stpDef       = getAttrDefByPos(tpOp, stpPosInTp);
 	AttributeDef *totalprovDef = getAttrDefByPos(tpOp, totalprovPos);
-	// (stp / totalprov) * 3.0, currently 3.0 is hard-coded based on the given SQL query, but it can be changed to a parameter if needed.
+	// (stp / totalprov) * 3.0, currently 3.0 is hard-coded based on the given SQL query.
 	Node *sspExpr = (Node *) createOpExpr("*", LIST_MAKE(
 		createOpExpr("/", LIST_MAKE(
 			createFullAttrReference(strdup(stpDef->attrName),       0, stpPosInTp,  INVALID_ATTR, stpDef->dataType),
 			createFullAttrReference(strdup(totalprovDef->attrName), 0, totalprovPos, INVALID_ATTR, totalprovDef->dataType))),
-		(Node *) createConstFloat(3.0)));
+		(Node *) createConstFloat(3.0))); // must retrieve from sampleSize instead later
 	sspProjExprs = appendToTailOfList(sspProjExprs, sspExpr);
 	sspAttrNames = appendToTailOfList(sspAttrNames, strdup("ssp"));
 
@@ -641,9 +642,21 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
 		idx++;
 	}
 
+	// joinsize is DT_LONG while ssp/stp are DT_FLOAT; the type inference only
+	// derives a numeric result type when both operands of an arithmetic op
+	// match exactly, so cast joinsize to DT_FLOAT to keep ssd typed as float.
+	// Must be a real CastExpr (not just a relabeled AttributeReference):
+	// introduceCastsWhereNecessary() (query_operator_dt_inference.c) walks the
+	// tree afterwards and resets any AttributeReference's recorded type back
+	// to its true source type, which would silently undo a relabel-only
+	// "fix" and reintroduce the DT_STRING fallback. CastExpr nodes are left
+	// untouched by that pass, so this is the only fix that survives it.
+	Node *joinsizeAsFloatForSsd = (Node *) createCastExpr(
+		(Node *) createFullAttrReference(strdup(joinsizeInSspDef->attrName), 0, nFtb, INVALID_ATTR, joinsizeInSspDef->dataType),
+		DT_FLOAT);
 	Node *ssdExpr = (Node *) createOpExpr("/", LIST_MAKE(
 		createOpExpr("*", LIST_MAKE(
-			createFullAttrReference(strdup(joinsizeInSspDef->attrName), 0, nFtb,       INVALID_ATTR, joinsizeInSspDef->dataType),
+			joinsizeAsFloatForSsd,
 			createFullAttrReference(strdup(sspColDef->attrName),        0, sspColPos,  INVALID_ATTR, sspColDef->dataType))),
 		createFullAttrReference(strdup(stpInSspDef->attrName),          0, stpPosInTp, INVALID_ATTR, stpInSspDef->dataType)));
 	ssdProjExprs = appendToTailOfList(ssdProjExprs, ssdExpr);
@@ -661,7 +674,6 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
 	int ssdColPos        = nTp + 1;
 	AttributeDef *ssdColDef        = getAttrDefByPos(ssdOp, ssdColPos);
 	AttributeDef *joinsizeInSsdDef = getAttrDefByPos(ssdOp, nFtb);
-	joinsizeInSsdDef->dataType     = DT_FLOAT;
 	List *wtProjExprs = NIL;
 	List *wtAttrNames = NIL;
 	idx = 0;
@@ -672,11 +684,14 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
 		wtAttrNames = appendToTailOfList(wtAttrNames, strdup(ad->attrName));
 		idx++;
 	}
-	Node *joinsizeAsFloat = (Node *) createOpExpr("*", LIST_MAKE(
-		createFullAttrReference(strdup(joinsizeInSsdDef->attrName), 0, nFtb, INVALID_ATTR, DT_LONG),
-		(Node *) createConstFloat(1.0)));
+	// joinsize is still DT_LONG here; cast (see Ssd above for why a real
+	// CastExpr is required) to DT_FLOAT so it matches ssd's DT_FLOAT type
+	// and the division infers as float.
+	Node *joinsizeAsFloat = (Node *) createCastExpr(
+		(Node *) createFullAttrReference(strdup(joinsizeInSsdDef->attrName), 0, nFtb, INVALID_ATTR, joinsizeInSsdDef->dataType),
+		DT_FLOAT);
 	Node *wtExpr = (Node *) createOpExpr("/", LIST_MAKE(
-		createFullAttrReference(strdup(ssdColDef->attrName), 0, ssdColPos, INVALID_ATTR, DT_FLOAT),
+		createFullAttrReference(strdup(ssdColDef->attrName), 0, ssdColPos, INVALID_ATTR, ssdColDef->dataType),
 		joinsizeAsFloat));
 	wtProjExprs = appendToTailOfList(wtProjExprs, wtExpr);
 	wtAttrNames = appendToTailOfList(wtAttrNames, strdup("weight"));
