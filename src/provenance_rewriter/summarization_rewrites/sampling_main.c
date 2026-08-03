@@ -33,10 +33,10 @@
 
 #define RESULT_WO_ATTR "numOfdistOnoc"
 
-static Node *rewritePartition (Node *rewrittenTree);
+static Node *rewritePartition (Node *rewrittenTree, int sampleSize);
 static Node *buildPartTa_Fta (QueryOperator *op, int nLeft, int leftZPos);
 static Node *buildPartTb_Ftb (QueryOperator *op, int nLeft, int rightZPos);
-static Node *buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos);
+static Node *buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos, int sampleSize);
 static List *children_Of_Join (QueryOperator *op, List *collectChildOps);
 
 
@@ -55,6 +55,15 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 			KeyValue *kv = (KeyValue *) n;
 			char *key = STRING_VALUE(kv->key);
 
+			// WITH SAMPLE(p) is parsed as a flat "sumsamp" property (see
+			// dl_parser.y's optionalSumSample and analyze_dl.c's
+			// analyzeSummerizationBasics, which copies each sumOpts entry
+			// straight onto the DLProgram's properties) -- it is never
+			// nested under SAMPLE_PROPS for a plain sampling query, so that
+			// case must be checked at this top level too.
+			if(streq(key,PROP_SUMMARIZATION_SAMPLE))
+				sampleSize = INT_VALUE(kv->value);
+
 			if(streq(key,PROP_SUMMARIZATION_SAMPLE_PROPS))
 			{
 				List *explSamp = (List *) n->value;
@@ -63,20 +72,20 @@ rewriteSampleOutput (Node *rewrittenTree, HashMap *summOpts, ProvQuestion qType)
 				{
 					char *key = STRING_VALUE(kv->key);
 
-					if(streq(key,PROP_SUMMARIZATION_SAMPLE)) // place to 58 since we don't do summarization
+					if(streq(key,PROP_SUMMARIZATION_SAMPLE))
 						sampleSize = INT_VALUE(kv->value);
 				}
 			}
 		}
 	}
 
-	DEBUG_LOG("sampling options are: qType: %s, sample size: %f",
+	DEBUG_LOG("sampling options are: qType: %s, sample size: %d",
 			  ProvQuestionToString(qType), sampleSize);
 
 	Node *rewrittenHead = (Node *) getHeadOfListP((List *) rewrittenTree);
 	INFO_OP_LOG("input rewritten trees:", rewrittenTree);
 
-	rewrittenTreePart = rewritePartition(rewrittenHead);
+	rewrittenTreePart = rewritePartition(rewrittenHead, sampleSize);
 	result = (Node *) rewrittenTreePart;
 
 	return result;
@@ -120,7 +129,7 @@ findEqAttrPos (Node *cond, int fromClauseItem)
 }
 
 
-static Node *rewritePartition (Node *rewrittenTree)
+static Node *rewritePartition (Node *rewrittenTree, int sampleSize)
 {
 	QueryOperator *in = (QueryOperator *) rewrittenTree;
 	INFO_OP_LOG("head of input rewritten trees:", in);
@@ -147,7 +156,7 @@ static Node *rewritePartition (Node *rewrittenTree)
 	Node *fta = buildPartTa_Fta(op, nLeft, leftZPos);
 	Node *ftb = buildPartTb_Ftb(op, nLeft, rightZPos);
 
-	return buildProvenance(fta, ftb, leftZPos, rightZPos);
+	return buildProvenance(fta, ftb, leftZPos, rightZPos, sampleSize);
 }
 
 
@@ -310,7 +319,7 @@ buildPartTa_Fta (QueryOperator *op, int nLeft, int leftZPos)
 		partitionBy,
 		NIL,   // no ORDER BY
 		NULL,  // no frame
-		strdup("numofz"),
+		strdup("numofza"),
 		partTaOp,
 		NIL
 	);
@@ -429,7 +438,7 @@ buildPartTb_Ftb (QueryOperator *op, int nLeft, int rightZPos)
  * ------------------------------------------------------------------------- */
 
 static Node *
-buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
+buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos, int sampleSize)
 {
 	QueryOperator *fta = (QueryOperator *) ftaNode;
 	QueryOperator *ftb = (QueryOperator *) ftbNode;
@@ -530,7 +539,7 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
 		createFullAttrReference(strdup(numofzbInJsDef->attrName),  0, numofzbInJs,  INVALID_ATTR, numofzbInJsDef->dataType)));
 	t1ProjExprs = appendToTailOfList(t1ProjExprs, temp1Expr);
 	t1AttrNames = appendToTailOfList(t1AttrNames, strdup("temp1"));
-	// currently bigint / bigint --> integer division truncates (5/3 --> 1 not 1.666)
+	// currently bigint / bigint --> integer division truncates
 
 	ProjectionOperator *temp1 = createProjectionOp(t1ProjExprs, joinsizeOp, NIL, t1AttrNames);
 	joinsizeOp->parents = singleton((QueryOperator *) temp1);
@@ -608,12 +617,12 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
 
 	AttributeDef *stpDef       = getAttrDefByPos(tpOp, stpPosInTp);
 	AttributeDef *totalprovDef = getAttrDefByPos(tpOp, totalprovPos);
-	// (stp / totalprov) * 3.0, currently 3.0 is hard-coded based on the given SQL query.
+	// (stp / totalprov) * sampleSize
 	Node *sspExpr = (Node *) createOpExpr("*", LIST_MAKE(
 		createOpExpr("/", LIST_MAKE(
 			createFullAttrReference(strdup(stpDef->attrName),       0, stpPosInTp,  INVALID_ATTR, stpDef->dataType),
 			createFullAttrReference(strdup(totalprovDef->attrName), 0, totalprovPos, INVALID_ATTR, totalprovDef->dataType))),
-		(Node *) createConstFloat(3.0))); // must retrieve from sampleSize instead later
+		(Node *) createConstFloat((double) sampleSize)));
 	sspProjExprs = appendToTailOfList(sspProjExprs, sspExpr);
 	sspAttrNames = appendToTailOfList(sspAttrNames, strdup("ssp"));
 
@@ -698,7 +707,59 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos)
 	ProjectionOperator *wt = createProjectionOp(wtProjExprs, ssdOp, NIL, wtAttrNames);
 	ssdOp->parents = singleton((QueryOperator *) wt);
 	INFO_OP_LOG("Wt operator tree:", (Node *) wt);
-	return (Node *) wt;
+
+	// --- Build Sftb ---
+	// SELECT *, ROW_NUMBER() OVER (PARTITION BY y ORDER BY ssd DESC, ssp DESC, random()) AS seqNum FROM Wt
+	QueryOperator *wtOp        = (QueryOperator *) wt;
+	AttributeDef *yInWtDef     = getAttrDefByPos(wtOp, yPos);
+	AttributeDef *ssdInWtDef   = getAttrDefByPos(wtOp, ssdColPos);
+	AttributeDef *sspInWtDef   = getAttrDefByPos(wtOp, sspColPos);
+
+	List *sftbPartBy = singleton(
+		createFullAttrReference(strdup(yInWtDef->attrName), 0, yPos, INVALID_ATTR, yInWtDef->dataType));
+
+	List *sftbOrderBy = LIST_MAKE(
+		createOrderExpr((Node *) createFullAttrReference(strdup(ssdInWtDef->attrName), 0, ssdColPos, INVALID_ATTR, ssdInWtDef->dataType),
+			SORT_DESC, SORT_NULLS_LAST),
+		createOrderExpr((Node *) createFullAttrReference(strdup(sspInWtDef->attrName), 0, sspColPos, INVALID_ATTR, sspInWtDef->dataType),
+			SORT_DESC, SORT_NULLS_LAST),
+		createOrderExpr((Node *) createFunctionCall(strdup("random"), NIL),
+			SORT_ASC, SORT_NULLS_LAST));
+
+	Node *rowNumCall = (Node *) createFunctionCall(strdup("row_number"), NIL);
+
+	WindowOperator *sftb = createWindowOp(
+		rowNumCall,
+		sftbPartBy,
+		sftbOrderBy,
+		NULL,  // no frame
+		strdup("seqNum"),
+		wtOp,
+		NIL
+	);
+	wtOp->parents = singleton((QueryOperator *) sftb);
+	INFO_OP_LOG("Sftb operator tree:", (Node *) sftb);
+
+	// --- Build Sftb2 ---
+	// SELECT * FROM Sftb WHERE seqNum <= ROUND(ssp, 0)
+	QueryOperator *sftbOp     = (QueryOperator *) sftb;
+	int seqNumPos             = LIST_LENGTH(wtOp->schema->attrDefs);  // appended right after Wt's last attr
+	AttributeDef *seqNumDef   = getAttrDefByPos(sftbOp, seqNumPos);
+	AttributeDef *sspInSftbDef = getAttrDefByPos(sftbOp, sspColPos);  // position unchanged
+
+	Node *roundSsp = (Node *) createFunctionCall(strdup("round"), LIST_MAKE(
+		createFullAttrReference(strdup(sspInSftbDef->attrName), 0, sspColPos, INVALID_ATTR, sspInSftbDef->dataType),
+		createConstInt(0)));
+
+	Node *sftb2Cond = (Node *) createOpExpr("<=", LIST_MAKE(
+		createFullAttrReference(strdup(seqNumDef->attrName), 0, seqNumPos, INVALID_ATTR, seqNumDef->dataType),
+		roundSsp));
+
+	SelectionOperator *sftb2 = createSelectionOp(sftb2Cond, sftbOp, NIL, NIL);
+	sftbOp->parents = singleton((QueryOperator *) sftb2);
+	INFO_OP_LOG("Sftb2 operator tree:", (Node *) sftb2);
+
+	return (Node *) sftb2;
 }
 
 
