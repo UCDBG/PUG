@@ -227,7 +227,7 @@ buildPartTa_Fta (QueryOperator *op, int nLeft, int leftZPos)
 // 		Node *ec1 = (Node *) createOpExpr("=", LIST_MAKE(
 // 			createFullAttrReference(strdup(innerX_def->attrName), 0, 0, 0, innerX_def->dataType),
 // 			createFullAttrReference(strdup(outerZ_def->attrName), 0, 1, 1, outerZ_def->dataType)));
-// 		// f.c > t.c  (inner cost > outer cost, correlated)
+// 		// f.c > t.c  (inner cost > outerewritePartitionr cost, correlated)
 // 		Node *ec2 = (Node *) createOpExpr(">", LIST_MAKE(
 // 			createFullAttrReference(strdup(innerC_def->attrName), 0, 2, 0, innerC_def->dataType),
 // 			createFullAttrReference(strdup(outerC_def->attrName), 0, 2, 1, outerC_def->dataType)));
@@ -759,7 +759,324 @@ buildProvenance (Node *ftaNode, Node *ftbNode, int leftZPos, int rightZPos, int 
 	sftbOp->parents = singleton((QueryOperator *) sftb2);
 	INFO_OP_LOG("Sftb2 operator tree:", (Node *) sftb2);
 
-	return (Node *) sftb2;
+	// return (Node *) sftb2;
+
+	SET_BOOL_STRING_PROP((Node *) sftb2, PROP_MATERIALIZE);
+	QueryOperator *sftb2Op = (QueryOperator *) sftb2;
+
+	int nFtaOwn         = LIST_LENGTH(fta->schema->attrDefs);
+	int numofzaPosInFta = nFtaOwn - 1;      // numofza is the last attr of Fta
+	int nOrigFtaAttrs   = numofzaPosInFta;  // x,z,c always occupy positions [0, nOrigFtaAttrs)
+
+	// --- Build numofza1 ---
+	// SELECT x, z, c, 1 AS threshold, 1 AS seqNum FROM Fta WHERE numofza = 1
+	AttributeDef *numofzaInFtaDef = getAttrDefByPos(fta, numofzaPosInFta);
+	Node *numofzaEq1Cond = (Node *) createOpExpr("=", LIST_MAKE(
+		createFullAttrReference(strdup(numofzaInFtaDef->attrName), 0, numofzaPosInFta, INVALID_ATTR, numofzaInFtaDef->dataType),
+		(Node *) createConstInt(1)));
+	SelectionOperator *numofzaEq1Sel = createSelectionOp(numofzaEq1Cond, fta, NIL, NIL);
+	addParent(fta, (QueryOperator *) numofzaEq1Sel);
+
+	List *numofza1ProjExprs = NIL;
+	List *numofza1AttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, fta->schema->attrDefs)
+	{
+		if (idx < nOrigFtaAttrs)  // keep original Fta attrs (x,z,c,...), drop numofza
+		{
+			numofza1ProjExprs = appendToTailOfList(numofza1ProjExprs,
+				createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+			numofza1AttrNames = appendToTailOfList(numofza1AttrNames, strdup(ad->attrName));
+		}
+		idx++;
+	}
+	numofza1ProjExprs = appendToTailOfList(numofza1ProjExprs, (Node *) createConstInt(1));
+	numofza1AttrNames = appendToTailOfList(numofza1AttrNames, strdup("threshold"));
+	numofza1ProjExprs = appendToTailOfList(numofza1ProjExprs, (Node *) createConstInt(1));
+	numofza1AttrNames = appendToTailOfList(numofza1AttrNames, strdup("seqNum"));
+
+	ProjectionOperator *numofza1 = createProjectionOp(numofza1ProjExprs,
+		(QueryOperator *) numofzaEq1Sel, NIL, numofza1AttrNames);
+	((QueryOperator *) numofzaEq1Sel)->parents = singleton((QueryOperator *) numofza1);
+	INFO_OP_LOG("numofza1 operator tree:", (Node *) numofza1);
+
+	// return (Node *) numofza1;
+
+	// --- Build numofzagt1 (part 1): FROM Fta f WHERE numofza > 1 AND z IN (SELECT zb FROM Sftb2) ---
+	Node *numofzaGt1Cond = (Node *) createOpExpr(">", LIST_MAKE(
+		createFullAttrReference(strdup(numofzaInFtaDef->attrName), 0, numofzaPosInFta, INVALID_ATTR, numofzaInFtaDef->dataType),
+		(Node *) createConstInt(1)));
+	SelectionOperator *numofzaGt1Sel = createSelectionOp(numofzaGt1Cond, fta, NIL, NIL);
+	addParent(fta, (QueryOperator *) numofzaGt1Sel);
+	QueryOperator *numofzaGt1SelOp = (QueryOperator *) numofzaGt1Sel;
+
+	// inner subquery: SELECT zb FROM Sftb2
+	AttributeDef *zbForInDef = getAttrDefByPos(sftb2Op, rightZPos);
+	List *zbInProjExprs = singleton(
+		createFullAttrReference(strdup(zbForInDef->attrName), 0, rightZPos, INVALID_ATTR, zbForInDef->dataType));
+	ProjectionOperator *zbInProj = createProjectionOp(zbInProjExprs, sftb2Op, NIL,
+		singleton(strdup(zbForInDef->attrName)));
+	addParent(sftb2Op, (QueryOperator *) zbInProj);
+	QueryOperator *zbInProjOp = (QueryOperator *) zbInProj;
+
+	// "z IN (SELECT zb FROM Sftb2)" as a semi-join: dedup zb first (Sftb2 has
+	// many rows per zb), then INNER JOIN, so matching rows are kept without
+	// being duplicated. Reuses the same Projection+DuplicateRemoval+Join
+	// combo already used throughout this file (e.g. Joinsize/Ftb).
+	List *zbDistinctExprs = singleton(
+		createFullAttrReference(strdup(zbForInDef->attrName), 0, 0, INVALID_ATTR, zbForInDef->dataType));
+	DuplicateRemoval *zbDistinct = createDuplicateRemovalOp(zbDistinctExprs,
+		zbInProjOp, NIL, singleton(strdup(zbForInDef->attrName)));
+	zbInProjOp->parents = singleton((QueryOperator *) zbDistinct);
+	QueryOperator *zbDistinctOp = (QueryOperator *) zbDistinct;
+
+	AttributeDef *zInFtaDef = getAttrDefByPos(numofzaGt1SelOp, leftZPos);
+	Node *inJoinCond = (Node *) createOpExpr("=", LIST_MAKE(
+		createFullAttrReference(strdup(zInFtaDef->attrName), 0, leftZPos, INVALID_ATTR, zInFtaDef->dataType),
+		createFullAttrReference(strdup(zbForInDef->attrName), 1, 0, INVALID_ATTR, zbForInDef->dataType)));
+
+	List *inJoinAttrNames = NIL;
+	FOREACH(AttributeDef, ad, numofzaGt1SelOp->schema->attrDefs)
+		inJoinAttrNames = appendToTailOfList(inJoinAttrNames, strdup(ad->attrName));
+	FOREACH(AttributeDef, ad, zbDistinctOp->schema->attrDefs)
+		inJoinAttrNames = appendToTailOfList(inJoinAttrNames, strdup(ad->attrName));
+
+	JoinOperator *zInSftb2Join = createJoinOp(JOIN_INNER, inJoinCond,
+		LIST_MAKE(numofzaGt1SelOp, zbDistinctOp), NIL, inJoinAttrNames);
+	addParent(numofzaGt1SelOp, (QueryOperator *) zInSftb2Join);
+	addParent(zbDistinctOp, (QueryOperator *) zInSftb2Join);
+	QueryOperator *zInSftb2JoinOp = (QueryOperator *) zInSftb2Join;
+
+	// drop the joined-in zb column, restoring Fta's own schema shape (the
+	// joined schema is Fta's own attrs followed by zbDistinct's single attr,
+	// so just keep the first nFtaOwn positions)
+	List *ftaFilteredProjExprs = NIL;
+	List *ftaFilteredAttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, numofzaGt1SelOp->schema->attrDefs)
+	{
+		ftaFilteredProjExprs = appendToTailOfList(ftaFilteredProjExprs,
+			createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+		ftaFilteredAttrNames = appendToTailOfList(ftaFilteredAttrNames, strdup(ad->attrName));
+		idx++;
+	}
+	ProjectionOperator *ftaFiltered = createProjectionOp(ftaFilteredProjExprs,
+		zInSftb2JoinOp, NIL, ftaFilteredAttrNames);
+	zInSftb2JoinOp->parents = singleton((QueryOperator *) ftaFiltered);
+	QueryOperator *ftaFilteredOp = (QueryOperator *) ftaFiltered;
+	INFO_OP_LOG("Fta filtered (numofza>1 AND z IN Sftb2.zb) operator tree:", (Node *) ftaFiltered);
+
+	// --- Build numofzagt1 (part 2): weight per zb, joined in ---
+	// Equivalent to (SELECT DISTINCT weight FROM Sftb2 s WHERE f.z = s.zb):
+	// weight must be functionally dependent on zb (constant for a given zb),
+	// so DISTINCT (zb, weight) has exactly one row per zb, which can just be
+	// joined in directly on z = zb.
+	int weightColPos = LIST_LENGTH(ssdOp->schema->attrDefs);  // weight appended right after Ssd's last attr
+	AttributeDef *zbForWeightDef   = getAttrDefByPos(sftb2Op, rightZPos);
+	AttributeDef *weightInSftb2Def = getAttrDefByPos(sftb2Op, weightColPos);
+
+	List *weightPerZbProjExprs = LIST_MAKE(
+		createFullAttrReference(strdup(zbForWeightDef->attrName), 0, rightZPos, INVALID_ATTR, zbForWeightDef->dataType),
+		createFullAttrReference(strdup(weightInSftb2Def->attrName), 0, weightColPos, INVALID_ATTR, weightInSftb2Def->dataType));
+	ProjectionOperator *weightPerZbProj = createProjectionOp(weightPerZbProjExprs, sftb2Op, NIL,
+		LIST_MAKE(strdup(zbForWeightDef->attrName), strdup(weightInSftb2Def->attrName)));
+	addParent(sftb2Op, (QueryOperator *) weightPerZbProj);
+
+	List *weightPerZbDupExprs = LIST_MAKE(
+		createFullAttrReference(strdup(zbForWeightDef->attrName), 0, 0, INVALID_ATTR, zbForWeightDef->dataType),
+		createFullAttrReference(strdup(weightInSftb2Def->attrName), 0, 1, INVALID_ATTR, weightInSftb2Def->dataType));
+	DuplicateRemoval *weightPerZb = createDuplicateRemovalOp(weightPerZbDupExprs,
+		(QueryOperator *) weightPerZbProj, NIL, LIST_MAKE(strdup(zbForWeightDef->attrName), strdup(weightInSftb2Def->attrName)));
+	((QueryOperator *) weightPerZbProj)->parents = singleton((QueryOperator *) weightPerZb);
+	QueryOperator *weightPerZbOp = (QueryOperator *) weightPerZb;
+
+	AttributeDef *zInFtaFilteredDef = getAttrDefByPos(ftaFilteredOp, leftZPos);
+	Node *weightJoinCond = (Node *) createOpExpr("=", LIST_MAKE(
+		createFullAttrReference(strdup(zInFtaFilteredDef->attrName), 0, leftZPos, INVALID_ATTR, zInFtaFilteredDef->dataType),
+		createFullAttrReference(strdup(zbForWeightDef->attrName), 1, 0, INVALID_ATTR, zbForWeightDef->dataType)));
+
+	List *weightJoinAttrNames = NIL;
+	FOREACH(AttributeDef, ad, ftaFilteredOp->schema->attrDefs)
+		weightJoinAttrNames = appendToTailOfList(weightJoinAttrNames, strdup(ad->attrName));
+	FOREACH(AttributeDef, ad, weightPerZbOp->schema->attrDefs)
+		weightJoinAttrNames = appendToTailOfList(weightJoinAttrNames, strdup(ad->attrName));
+
+	JoinOperator *weightJoin = createJoinOp(JOIN_INNER, weightJoinCond,
+		LIST_MAKE(ftaFilteredOp, weightPerZbOp), NIL, weightJoinAttrNames);
+	addParent(ftaFilteredOp, (QueryOperator *) weightJoin);
+	addParent(weightPerZbOp, (QueryOperator *) weightJoin);
+	QueryOperator *weightJoinOp = (QueryOperator *) weightJoin;
+
+	// drop the joined-in zb column (redundant with ftaFiltered's own z),
+	// keeping (x, z, c, numofza, weight)
+	int nFtaFiltered = LIST_LENGTH(ftaFilteredOp->schema->attrDefs);
+	List *weightJoinedProjExprs = NIL;
+	List *weightJoinedAttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, weightJoinOp->schema->attrDefs)
+	{
+		if (idx < nFtaFiltered || idx == nFtaFiltered + 1)  // ftaFiltered's own attrs, plus weight (skip zb at nFtaFiltered)
+		{
+			weightJoinedProjExprs = appendToTailOfList(weightJoinedProjExprs,
+				createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+			weightJoinedAttrNames = appendToTailOfList(weightJoinedAttrNames, strdup(ad->attrName));
+		}
+		idx++;
+	}
+	ProjectionOperator *weightJoined = createProjectionOp(weightJoinedProjExprs, weightJoinOp, NIL, weightJoinedAttrNames);
+	weightJoinOp->parents = singleton((QueryOperator *) weightJoined);
+	QueryOperator *weightJoinedOp = (QueryOperator *) weightJoined;
+	INFO_OP_LOG("Fta filtered with weight (joined) operator tree:", (Node *) weightJoined);
+
+	// threshold = numofza * weight. numofza is DT_LONG, weight is DT_FLOAT --
+	// cast numofza the same way (and for the same reason) as the Ssd/Wt fix
+	// above. weight sits right after ftaFiltered's own attrs in weightJoined's
+	// schema (the join+trim appended it there).
+	int weightPosInJoined = LIST_LENGTH(ftaFilteredOp->schema->attrDefs);
+	AttributeDef *numofzaInFilteredDef = getAttrDefByPos(ftaFilteredOp, numofzaPosInFta);
+	Node *numofzaAsFloat = (Node *) createCastExpr(
+		(Node *) createFullAttrReference(strdup(numofzaInFilteredDef->attrName), 0, numofzaPosInFta, INVALID_ATTR, numofzaInFilteredDef->dataType),
+		DT_FLOAT);
+	Node *thresholdExpr = (Node *) createOpExpr("*", LIST_MAKE(
+		numofzaAsFloat,
+		createFullAttrReference(strdup(weightInSftb2Def->attrName), 0, weightPosInJoined, INVALID_ATTR, weightInSftb2Def->dataType)));
+
+	List *thresholdProjExprs = NIL;
+	List *thresholdAttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, weightJoinedOp->schema->attrDefs)
+	{
+		thresholdProjExprs = appendToTailOfList(thresholdProjExprs,
+			createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+		thresholdAttrNames = appendToTailOfList(thresholdAttrNames, strdup(ad->attrName));
+		idx++;
+	}
+	thresholdProjExprs = appendToTailOfList(thresholdProjExprs, thresholdExpr);
+	thresholdAttrNames = appendToTailOfList(thresholdAttrNames, strdup("threshold"));
+	ProjectionOperator *thresholdProj = createProjectionOp(thresholdProjExprs, weightJoinedOp, NIL, thresholdAttrNames);
+	weightJoinedOp->parents = singleton((QueryOperator *) thresholdProj);
+	QueryOperator *thresholdProjOp = (QueryOperator *) thresholdProj;
+
+	// seqNum = ROW_NUMBER() OVER (PARTITION BY z ORDER BY random())
+	AttributeDef *zInThresholdDef = getAttrDefByPos(thresholdProjOp, leftZPos);
+	List *gt1PartBy = singleton(
+		createFullAttrReference(strdup(zInThresholdDef->attrName), 0, leftZPos, INVALID_ATTR, zInThresholdDef->dataType));
+	List *gt1OrderBy = singleton(
+		createOrderExpr((Node *) createFunctionCall(strdup("random"), NIL), SORT_ASC, SORT_NULLS_LAST));
+	Node *rowNumCallGt1 = (Node *) createFunctionCall(strdup("row_number"), NIL);
+
+	WindowOperator *numofzagt1Win = createWindowOp(
+		rowNumCallGt1, gt1PartBy, gt1OrderBy, NULL, strdup("seqNum"), thresholdProjOp, NIL);
+	thresholdProjOp->parents = singleton((QueryOperator *) numofzagt1Win);
+	QueryOperator *numofzagt1WinOp = (QueryOperator *) numofzagt1Win;
+	INFO_OP_LOG("numofzagt1 (pre-filter) operator tree:", (Node *) numofzagt1Win);
+
+	// outer filter: WHERE ROUND(threshold) >= seqNum
+	// threshold ends up as float8 (double precision) here -- unlike ssp, which
+	// stays plain numeric because it never needed a CastExpr -- and Postgres
+	// has no round(double precision, integer) overload (only
+	// round(numeric, integer)), so this must use the single-arg
+	// round(threshold), which is equivalent for 0 decimal places and works on
+	// float8. (Using ROUND(threshold, 0) here like ssp's filter would crash
+	// with "function round(double precision, integer) does not exist".)
+	int thresholdPos = LIST_LENGTH(weightJoinedOp->schema->attrDefs);
+	int seqNumPosGt1 = LIST_LENGTH(thresholdProjOp->schema->attrDefs);
+	AttributeDef *thresholdDef = getAttrDefByPos(numofzagt1WinOp, thresholdPos);
+	AttributeDef *seqNumGt1Def = getAttrDefByPos(numofzagt1WinOp, seqNumPosGt1);
+
+	Node *roundThreshold = (Node *) createFunctionCall(strdup("round"), singleton(
+		createFullAttrReference(strdup(thresholdDef->attrName), 0, thresholdPos, INVALID_ATTR, thresholdDef->dataType)));
+	Node *gt1FilterCond = (Node *) createOpExpr(">=", LIST_MAKE(
+		roundThreshold,
+		createFullAttrReference(strdup(seqNumGt1Def->attrName), 0, seqNumPosGt1, INVALID_ATTR, seqNumGt1Def->dataType)));
+
+	SelectionOperator *numofzagt1Filtered = createSelectionOp(gt1FilterCond, numofzagt1WinOp, NIL, NIL);
+	numofzagt1WinOp->parents = singleton((QueryOperator *) numofzagt1Filtered);
+	QueryOperator *numofzagt1FilteredOp = (QueryOperator *) numofzagt1Filtered;
+	INFO_OP_LOG("numofzagt1 operator tree:", (Node *) numofzagt1Filtered);
+
+	// trim down to (x,z,c,threshold,seqNum) to match numofza1's shape for the UNION ALL
+	List *numofzagt1ProjExprs = NIL;
+	List *numofzagt1AttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, numofzagt1FilteredOp->schema->attrDefs)
+	{
+		if (idx < nOrigFtaAttrs || idx == thresholdPos || idx == seqNumPosGt1)
+		{
+			numofzagt1ProjExprs = appendToTailOfList(numofzagt1ProjExprs,
+				createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+			numofzagt1AttrNames = appendToTailOfList(numofzagt1AttrNames, strdup(ad->attrName));
+		}
+		idx++;
+	}
+	ProjectionOperator *numofzagt1Final = createProjectionOp(numofzagt1ProjExprs,
+		numofzagt1FilteredOp, NIL, numofzagt1AttrNames);
+	numofzagt1FilteredOp->parents = singleton((QueryOperator *) numofzagt1Final);
+	INFO_OP_LOG("numofzagt1 (final, trimmed) operator tree:", (Node *) numofzagt1Final);
+
+	// --- Build sampOfFta ---
+	// SELECT * FROM numofza1 UNION ALL SELECT * FROM numofzagt1
+	List *sampOfFtaAttrNames = deepCopyStringList(numofza1AttrNames);
+	SetOperator *sampOfFta = createSetOperator(SETOP_UNION,
+		LIST_MAKE(numofza1, numofzagt1Final), NIL, sampOfFtaAttrNames);
+	((QueryOperator *) numofza1)->parents = singleton((QueryOperator *) sampOfFta);
+	((QueryOperator *) numofzagt1Final)->parents = singleton((QueryOperator *) sampOfFta);
+	QueryOperator *sampOfFtaOp = (QueryOperator *) sampOfFta;
+	INFO_OP_LOG("sampOfFta operator tree:", (Node *) sampOfFta);
+
+	// --- Build finalSamp ---
+	// SELECT s.x, s.z, s.c, t.y, t.cb FROM sampOfFta s JOIN Sftb2 t ON s.z = t.zb
+	AttributeDef *zInSampDef       = getAttrDefByPos(sampOfFtaOp, leftZPos);
+	AttributeDef *zbInSftb2JoinDef = getAttrDefByPos(sftb2Op, rightZPos);
+	Node *finalJoinCond = (Node *) createOpExpr("=", LIST_MAKE(
+		createFullAttrReference(strdup(zInSampDef->attrName), 0, leftZPos, INVALID_ATTR, zInSampDef->dataType),
+		createFullAttrReference(strdup(zbInSftb2JoinDef->attrName), 1, rightZPos, INVALID_ATTR, zbInSftb2JoinDef->dataType)));
+
+	List *finalJoinAttrNames = NIL;
+	FOREACH(AttributeDef, ad, sampOfFtaOp->schema->attrDefs)
+		finalJoinAttrNames = appendToTailOfList(finalJoinAttrNames, strdup(ad->attrName));
+	FOREACH(AttributeDef, ad, sftb2Op->schema->attrDefs)
+		finalJoinAttrNames = appendToTailOfList(finalJoinAttrNames, strdup(ad->attrName));
+
+	JoinOperator *finalJoin = createJoinOp(JOIN_INNER, finalJoinCond,
+		LIST_MAKE(sampOfFtaOp, sftb2Op), NIL, finalJoinAttrNames);
+	addParent(sampOfFtaOp, (QueryOperator *) finalJoin);
+	addParent(sftb2Op, (QueryOperator *) finalJoin);
+	QueryOperator *finalJoinOp = (QueryOperator *) finalJoin;
+	INFO_OP_LOG("finalSamp join operator tree:", (Node *) finalJoin);
+
+	// project s.x, s.z, s.c, t.y, t.cb
+	int nSampOfFta          = LIST_LENGTH(sampOfFtaOp->schema->attrDefs);
+	int yInSftb2PosInJoin   = nSampOfFta + yPos;
+	int cbInSftb2PosInJoin  = nSampOfFta + yPos + 1;  // cb is right after y
+
+	List *finalProjExprs = NIL;
+	List *finalAttrNames = NIL;
+	idx = 0;
+	FOREACH(AttributeDef, ad, sampOfFtaOp->schema->attrDefs)
+	{
+		if (idx < nOrigFtaAttrs)  // x, z, c (drop threshold, seqNum)
+		{
+			finalProjExprs = appendToTailOfList(finalProjExprs,
+				createFullAttrReference(strdup(ad->attrName), 0, idx, INVALID_ATTR, ad->dataType));
+			finalAttrNames = appendToTailOfList(finalAttrNames, strdup(ad->attrName));
+		}
+		idx++;
+	}
+	AttributeDef *yInJoinDef  = getAttrDefByPos(finalJoinOp, yInSftb2PosInJoin);
+	AttributeDef *cbInJoinDef = getAttrDefByPos(finalJoinOp, cbInSftb2PosInJoin);
+	finalProjExprs = appendToTailOfList(finalProjExprs,
+		createFullAttrReference(strdup(yInJoinDef->attrName), 0, yInSftb2PosInJoin, INVALID_ATTR, yInJoinDef->dataType));
+	finalAttrNames = appendToTailOfList(finalAttrNames, strdup(yInJoinDef->attrName));
+	finalProjExprs = appendToTailOfList(finalProjExprs,
+		createFullAttrReference(strdup(cbInJoinDef->attrName), 0, cbInSftb2PosInJoin, INVALID_ATTR, cbInJoinDef->dataType));
+	finalAttrNames = appendToTailOfList(finalAttrNames, strdup(cbInJoinDef->attrName));
+
+	ProjectionOperator *finalSamp = createProjectionOp(finalProjExprs, finalJoinOp, NIL, finalAttrNames);
+	finalJoinOp->parents = singleton((QueryOperator *) finalSamp);
+	INFO_OP_LOG("finalSamp operator tree:", (Node *) finalSamp);
+
+	return (Node *) finalSamp;
 }
 
 
